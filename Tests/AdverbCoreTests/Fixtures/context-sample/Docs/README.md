@@ -1,0 +1,3 @@
+# Docs
+
+How citing works.

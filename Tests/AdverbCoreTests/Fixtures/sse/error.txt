@@ -1,0 +1,3 @@
+data: {"type":"message_start","message":{"id":"msg_4","model":"claude-opus-5-5","content":[],"usage":{"input_tokens":5,"output_tokens":0}}}
+
+data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}

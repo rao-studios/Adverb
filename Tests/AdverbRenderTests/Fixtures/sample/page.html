@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Highlight a line</title><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="dev.css">
+<style>
+  body.P #card{left:96px;top:660px;width:888px}
+  body.P .para{font-size:40px}
+  body.P #code{left:96px;top:1080px;width:888px}
+  body.L #card{left:960px;top:300px;width:840px}
+  body.L .para{font-size:34px}
+  body.L #code{left:960px;top:640px;width:840px}
+  .src{font-size:24px}
+</style></head>
+<body class="P"><div id="stage">
+  <div id="h1" class="head">Highlight <em>a line.</em></div>
+  <div id="h2" class="head">Every answer shows <em>where it came from.</em></div>
+  <div id="card" class="abs pearl gold-edge" style="border-radius:24px;padding:28px 32px">
+    <div class="para" style="position:relative"><div class="brushes" data-for="s1"></div>
+      <span class="hl">Morrow kept the colour because it </span><span class="hl" id="s1">stays visible in fog</span><span class="hl">.</span></div>
+    <div style="margin-top:22px"><span class="chip" id="c1"><span class="sw"></span>The Bridge in the Fog</span></div>
+  </div>
+  <div id="code" class="code"><div class="bar"><i></i><i></i><i></i><span>Reader.swift</span></div>
+    <div class="src"><span class="ln"><span class="k">let</span> answer = <span class="k">try await</span> aii.<span class="gmark" id="m1">ask</span>(question)</span><span class="ln"><span class="c">// grounded in your lane, cited</span></span></div></div>
+  <div class="abs mono only-L" style="left:120px;top:640px;color:#64625C">On your Mac · nothing has to leave it</div>
+</div>
+<script src="kit.js"></script><script src="dev.js"></script>
+<script>
+window.DUR=15;
+window.SCENES=[0,6.35,13.4];
+ready({dur:15,endAt:13.4,kicker:'Ambient, explained',endTitle:'Ambient',endSub:'ambient.rao.nyc',
+  seek(t){
+    headline($('#h1'),t,.15,6.0); headline($('#h2'),t,6.35,13.3);
+    const c=eoq(seg(t,.8,1.3)); show($('#card'),c*(1-seg(t,13.2,13.4)),(1-c)*50);
+    setBrush('s1',eio(seg(t,2.0,2.7))); rise($('#c1'),t,2.6,3.0,14);
+    const k=eoq(seg(t,6.6,7.1)); show($('#code'),k*(1-seg(t,13.2,13.4)),(1-k)*40);
+    lines($('#code'),t,6.8); mark($('#m1'),t,8.0,8.8);
+  }});
+</script></body></html>

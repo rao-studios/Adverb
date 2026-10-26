@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Not sandboxed, like Ambient and Craft: projects are folders the person already works in,
+	     anywhere on the Mac, and the working directory is an external drive. The hardened runtime
+	     needs no exceptions: WebKit renders in its own process; AVFoundation encodes in this one. -->
+</dict>
+</plist>

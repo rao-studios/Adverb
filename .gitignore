@@ -60,3 +60,18 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Adverb
+/build/
+/.build/
+/pkg/
+# A test fixture: a project's build folder, which the context digest must skip.
+!Tests/AdverbCoreTests/Fixtures/context-sample/.build/
+.swiftpm/
+.DS_Store
+._*
+
+# Editors and agents
+.vscode/
+.claude/
+CLAUDE.md

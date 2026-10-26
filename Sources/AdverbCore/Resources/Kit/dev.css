@@ -1,0 +1,8 @@
+.code,.term{position:absolute;border-radius:24px;background:#0E1015;color:#E6E4DE;box-shadow:0 0 0 1px rgba(0,0,0,.2),0 44px 80px -36px rgba(30,28,24,.7);overflow:hidden}
+.code .bar,.term .bar{display:flex;align-items:center;gap:9px;padding:16px 22px;border-bottom:1px solid rgba(255,255,255,.07)}
+.code .bar i,.term .bar i{width:12px;height:12px;border-radius:50%;background:#2A2D35}
+.code .bar span,.term .bar span{margin-left:12px;font-family:var(--mono);font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:#7C808C}
+.src{font-family:var(--mono);font-size:22px;line-height:1.75;padding:22px 30px 26px;white-space:pre;position:relative}
+.ln{display:block;min-height:1.75em}
+.k{color:#C79BE0}.t{color:#8FB8E8}.s{color:#E2C887}.c{color:#6B707C}.n{color:#E9A178}.p{color:#9E9D97}.ok{color:#E2C887}.dim{color:#7C808C}
+.gmark{background-image:linear-gradient(transparent 12%,rgba(206,160,72,.34) 12%,rgba(206,160,72,.34) 92%,transparent 92%);background-repeat:no-repeat;background-size:0% 100%;border-radius:3px}
