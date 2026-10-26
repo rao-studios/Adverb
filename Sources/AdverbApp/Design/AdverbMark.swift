@@ -2,7 +2,7 @@
 //  AdverbMark.swift
 //  Adverb
 //
-//  WHAT: The app's mark, as the icon draws it: an italic gold "ly" over a brushstroke.
+//  WHAT: The app's mark, as the icon draws it: an italic gold "ly", highlighted across its x-height.
 //
 
 import SwiftUI
@@ -11,12 +11,13 @@ struct AdverbMark: View {
     var size: CGFloat = 56
 
     var body: some View {
-        ZStack {
-            Capsule()
+        // The highlight stands on the text's baseline and reaches just under the tops of the y's
+        // arms: a little under Instrument Serif's x-height (346 px at 660 px type on the icon).
+        ZStack(alignment: Alignment(horizontal: .center, vertical: .firstTextBaseline)) {
+            RoundedRectangle(cornerRadius: AdverbRadius.hairline)
                 .fill(Color.adverbBrush)
-                .frame(width: size * 0.95, height: size * 0.2)
-                .rotationEffect(.degrees(-2))
-                .offset(y: size * 0.12)
+                .frame(width: size * 0.95, height: size * 0.46)
+                .alignmentGuide(.firstTextBaseline) { d in d[.bottom] }
             Text("ly")
                 .font(.adverbDisplay(size, italic: true))
                 .foregroundStyle(LinearGradient(colors: [.adverbGoldLight, .adverbGold, .adverbGoldDeep],

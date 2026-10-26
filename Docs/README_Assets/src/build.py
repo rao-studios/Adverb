@@ -48,8 +48,10 @@ def shoot(browser, page_html, path, viewport=(1200, 630), scale=2):
         os.unlink(name)
 
 
-def brush_path(w, h, seed):
-    """The kit's brushstroke (kit.js brushPath): a seeded ragged band, wider than it is tall."""
+def brush_path(w, h, seed, rough=None):
+    """The kit's brushstroke (kit.js brushPath): a seeded ragged band, wider than it is tall.
+    `rough` fixes how ragged the long edges are, in pixels; by default it grows with the height,
+    as the kit's does, which is right for a stroke under a line of text and too rough for a tall one."""
     state = [seed]
 
     def r():
@@ -59,8 +61,8 @@ def brush_path(w, h, seed):
     n, top, bot = 14, [], []
     for i in range(n + 1):
         x = i / n * w
-        top.append([x + (r() - .5) * 6, h * .16 + (r() - .5) * h * .16])
-        bot.append([x + (r() - .5) * 6, h * .9 + (r() - .5) * h * .14])
+        top.append([x + (r() - .5) * 6, h * .16 + (r() - .5) * (rough if rough is not None else h * .16)])
+        bot.append([x + (r() - .5) * 6, h * .9 + (r() - .5) * (rough if rough is not None else h * .14)])
     top[0][0], bot[0][0], top[n][0], bot[n][0] = -6, -2, w + 4, w + 8
     d = f"M{top[0][0]},{top[0][1]}"
     for x, y in top[1:]:
@@ -166,10 +168,10 @@ svg.band {{ position: absolute; left: 0; top: 0; }}
 
 # An adverb tells how and when the verb happens; its mark is the "-ly". Italic gold "ly" in the kit's
 # Instrument Serif on liquid platinum (the Rao seal, blurred, under the kit's page gradient), with the
-# kit's gold brushstroke beneath. Full-bleed square: macOS masks it, and the Icon Composer layer
+# kit's gold brushstroke as a highlight across the letters' x-height, baseline to the top of the y. Full-bleed square: macOS masks it, and the Icon Composer layer
 # (AppIcon.icon) scales it to the tile.
 def icon(browser):
-    stroke = brush_path(560, 128, 31)
+    stroke = brush_path(560, 451, 31, rough=18)
     page = f"""<!doctype html><html><head><meta charset="utf-8"><style>
 @font-face {{ font-family: "Instrument Serif"; font-style: italic; src: url("file://{INSTRUMENT_ITALIC}") format("woff2"); }}
 html, body {{ margin: 0; width: 1024px; height: 1024px; overflow: hidden; }}
@@ -177,7 +179,7 @@ body {{ position: relative; background: linear-gradient(175deg, #EFEEEA 0%, #E2E
 .tex {{ position: absolute; inset: -60px; background: url("file://{SEAL}") center/cover; filter: blur(34px) saturate(.25) brightness(1.06);
         opacity: .55; mix-blend-mode: multiply; }}
 .sheen {{ position: absolute; inset: 0; background: radial-gradient(70% 55% at 30% 18%, rgba(255,255,255,.55), transparent 70%); }}
-.brush {{ position: absolute; left: 236px; top: 512px; }}
+.brush {{ position: absolute; left: 236px; top: 224px; }}
 .ly {{ position: absolute; left: 0; width: 1024px; top: 70px; text-align: center; font-family: "Instrument Serif"; font-style: italic;
        font-size: 660px; line-height: 1; letter-spacing: -.02em; padding-right: 30px; padding-bottom: 220px; box-sizing: border-box;
        background: linear-gradient(160deg, #D9B66E 0%, {GOLD} 40%, #9C7535 70%, {GOLD_DEEP} 100%);
@@ -185,7 +187,7 @@ body {{ position: relative; background: linear-gradient(175deg, #EFEEEA 0%, #E2E
        filter: drop-shadow(0 10px 14px rgba(90,70,30,.28)); }}
 </style></head><body>
 <div class="tex"></div><div class="sheen"></div>
-<svg class="brush" width="560" height="128" style="overflow:visible"><path d="{stroke}" fill="rgba(206,160,72,.40)"/></svg>
+<svg class="brush" width="560" height="451" style="overflow:visible"><path d="{stroke}" fill="rgba(206,160,72,.40)"/></svg>
 <div class="ly">ly</div>
 </body></html>"""
     master = os.path.join(REPO, "Support", "AppIcon", "icon_1024.png")
