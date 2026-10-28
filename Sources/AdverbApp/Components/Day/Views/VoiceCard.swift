@@ -35,7 +35,7 @@ struct VoiceCard: View {
                 if let vo = asset.voiceOver {
                     narrated(vo)
                 } else {
-                    Text("Silent. A voice-over has Claude write a short narration for this asset and an ElevenLabs voice speak it over both videos; the frames stay as they are.")
+                    Text("Silent. A voice-over has Claude write a short narration for this asset, timed to its text, and an ElevenLabs voice speak each line as its words appear on screen.")
                         .adverbType(.readingSmall).foregroundStyle(Color.adverbInkDim)
                     Button("Add a voice-over…", action: choose).buttonStyle(.adverb).disabled(busy)
                 }

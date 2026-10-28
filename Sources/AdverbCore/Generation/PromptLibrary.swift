@@ -107,7 +107,7 @@ public struct PromptLibrary: Sendable, Equatable {
     // MARK: Voice-over
 
     /// The narration for a built page: timed to its real scenes, written to be heard.
-    public func narrate(digest: String, day: CampaignDay, scenes: [Double], duration: Int, project: Project) -> [ClaudeMessageParam] {
+    public func narrate(digest: String, day: CampaignDay, scenes: [Double], duration: Int, project: Project, onScreen: [Cue] = []) -> [ClaudeMessageParam] {
         let endAt = Double(duration) - 1.6
         let starts = scenes.isEmpty ? [0, endAt] : scenes
         var lines: [String] = []
@@ -121,6 +121,13 @@ public struct PromptLibrary: Sendable, Equatable {
         for s in day.topic.scenes { lines.append(String(format: "- %.1f–%.1f s · %@", s.at, s.until, s.what)) }
         lines.append("The page's window.SCENES (the real scene starts, page time): \(starts.map { String(format: "%.2f", $0) }.joined(separator: ", ")).")
         lines.append(String(format: "window.DUR=%d; the end card starts at endAt %.1f.", duration, endAt))
+        if !onScreen.isEmpty {
+            lines.append("When each piece of text arrives on screen (page time), as the page plays:")
+            for cue in onScreen.sorted(by: { $0.start < $1.start }).prefix(40) {
+                lines.append(String(format: "- %.2f–%.2f s · %@", cue.start, cue.end, cue.text.replacingOccurrences(of: "\n", with: " / ")))
+            }
+            lines.append("Start each line (`at`) at the arrival of the text or picture it speaks about: Adverb starts the voice exactly then, so the words and the screen land together.")
+        }
         lines.append("")
         lines.append("Name: \(project.app.name). End card: \(project.app.endTitle) · \(project.app.endSub).")
         if project.app.comingSoon { lines.append("\(project.app.name) is coming soon: say so, never as shipping.") }

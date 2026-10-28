@@ -65,7 +65,7 @@ struct VoicePage: View {
                 } else {
                     Text("Add a key above to list and hear the voices.").adverbType(.caption).foregroundStyle(Color.adverbInkDim)
                 }
-                Text("Claude writes a short narration for each asset from its page, timed to its scenes; the voice speaks it over both videos, and the captions carry what it says. ElevenLabs bills each character spoken.")
+                Text("Claude writes a short narration for each asset, timed to its text. The page plays at the voice's pace, so each line's words appear on screen as it is said; with a song, the lines land on the beat. The captions carry what it says. ElevenLabs bills each character spoken.")
                     .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
             }
             .adverbType(.label)

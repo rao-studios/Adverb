@@ -62,11 +62,19 @@ public enum RetimeJob {
             let scenes = PageVerifier.scenes(base)
             let kitPrefix = PageVerifier.relativePath(from: a.folder, to: kit)
             var html = base
-            var warp: TimeWarp? = Beatmap.warp(scenes: scenes, grid: grid, duration: duration, endAt: duration - 1.6)
+            // A narrated asset follows its voice: each line, and the text it speaks about, on the beat.
+            let voiceLines = asset.voiceOver.map(\.english.lines).flatMap { $0.isEmpty || !$0.allSatisfy(\.isRecorded) ? nil : $0 }
+            var warp: TimeWarp? = voiceLines.map { VoiceJob.voiceWarp($0, duration: duration, grid: grid, log: log) }
+                ?? Beatmap.warp(scenes: scenes, grid: grid, duration: duration, endAt: duration - 1.6)
             // Where the voice-over's lines land: the warp, or for a re-time, the scenes' move.
             var placement = warp
             var mode = request.mode
-            var descriptions = asset.originalA11y?.descriptions ?? asset.a11y.descriptions
+            if voiceLines != nil, mode == .retime {
+                log.line("narrated: the voice leads the cut, so its lines land on the beat (warp) instead of a Claude re-time")
+                emit(.log("A narrated day follows its voice: its lines and their text land on the beat."))
+                mode = .warp
+            }
+            var descriptions = asset.pageDescriptions
 
             if mode == .retime {
                 emit(.step("Re-timing with Claude"))

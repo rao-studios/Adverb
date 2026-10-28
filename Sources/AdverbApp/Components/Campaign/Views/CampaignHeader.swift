@@ -33,7 +33,7 @@ struct CampaignHeader: View {
                 if silent > 0 {
                     Button("Voice \(silent) built \(silent == 1 ? "day" : "days")") { root.voiceBuiltDays(project.slug, campaign) }
                         .buttonStyle(.adverbQuiet).disabled(busy)
-                        .help("These days were built before the campaign was narrated: give them \(voice.voiceName)'s voice without rebuilding them")
+                        .help("These days were built before the campaign was narrated: give them \(voice.voiceName)'s voice, timed to their text, without a Claude build")
                 }
             }
             if busy {

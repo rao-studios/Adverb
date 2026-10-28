@@ -54,6 +54,25 @@ if args.count >= 2, ["sheet", "grab", "inspect", "beats", "remux"].contains(args
     done.wait()
     exit(0)
 }
+// `text <page.html>`: when each piece of text arrives, what a voice-over is timed to. WebKit
+// needs the main run loop, so it runs inside the app's, as the renders do.
+if args.count >= 3, args[1] == "text" {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.prohibited)
+    Task { @MainActor in
+        do {
+            let page = URL(fileURLWithPath: args[2]).standardizedFileURL
+            let t0 = Date()
+            let cues = try await PageRenderer.textTimeline(page: page, readAccess: page.deletingLastPathComponent())
+            for cue in cues { print(String(format: "%6.2f–%6.2f  %@", cue.start, cue.end, cue.text.replacingOccurrences(of: "\n", with: " / "))) }
+            print(String(format: "%d pieces of text in %.2f s", cues.count, Date().timeIntervalSince(t0)))
+            exit(0)
+        } catch {
+            FileHandle.standardError.write(Data("text failed: \(error)\n".utf8)); exit(1)
+        }
+    }
+    app.run()
+}
 guard args.count >= 4 else {
     FileHandle.standardError.write(Data("usage: adverb-render-probe <page.html> <P|L> <out-dir> [--frames N] [--supersample] [--bitrate Mbps]\n".utf8))
     exit(2)

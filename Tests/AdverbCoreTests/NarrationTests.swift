@@ -42,11 +42,13 @@ private extension Array where Element == ClaudeMessageParam {
         var b = recorded("Second line.", at: 4.0, until: 6.0, spoken: (0.1, 1.2)); b.index = 1
         let cues = NarrationCaptions.cues(lines: [a, b], warp: nil, duration: 15)
         #expect(cues.map(\.text) == ["Hello there.", "Second line."])
-        #expect(abs(cues[0].start - 1.05) < 1e-9 && abs(cues[0].end - 1.9) < 1e-9)
-        // A warp that moves the second scene 0.5 s earlier moves its clip with it.
+        // The first word is on the line's moment; the clip starts early by its lead-in.
+        #expect(abs(cues[0].start - 1.0) < 1e-9 && abs(cues[0].end - 1.85) < 1e-9)
+        #expect(abs(a.placedStart(warp: nil) - 0.95) < 1e-9)
+        // A warp that moves the second scene 0.5 s earlier moves its speech with it.
         let warp = TimeWarp(knots: [.init(page: 0, real: 0), .init(page: 4, real: 3.5), .init(page: 15, real: 15)])
         let warped = NarrationCaptions.cues(lines: [a, b], warp: warp, duration: 15)
-        #expect(abs(warped[1].start - 3.6) < 1e-9)
+        #expect(abs(warped[1].start - 3.5) < 1e-9)
         // Short speech is held half a second; nothing runs past the asset.
         let short = NarrationCaptions.cues(lines: [recorded("Hi.", at: 14.6, until: 14.9, spoken: (0, 0.1))], warp: nil, duration: 15)
         #expect(short[0].end == 15)

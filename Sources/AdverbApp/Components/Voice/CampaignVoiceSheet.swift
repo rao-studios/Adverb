@@ -50,7 +50,7 @@ struct CampaignVoiceSheet: View {
                     }
                     if silent > 0 {
                         Toggle("Also narrate the \(silent) \(silent == 1 ? "day" : "days") already built", isOn: $voiceBuilt).adverbType(.label)
-                        Text("Their videos keep their frames and get the voice; nothing is rendered again. ElevenLabs bills each character spoken.")
+                        Text("Each is timed so its text arrives with the words; where a line needs more room the page is rendered again at the voice's pace, with no Claude build. ElevenLabs bills each character spoken.")
                             .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
                     }
                 }

@@ -100,6 +100,23 @@ public enum PageRenderer {
         return info
     }
 
+    /// What text is on screen when, in page time, without painting a frame: the blocks the
+    /// captions are made from, each with when it arrives and leaves. What a voice-over is timed to.
+    public static func textTimeline(page: URL, readAccess: URL, orientation: Orientation = .portrait, step: Double = 0.1) async throws -> [Cue] {
+        let source = WebFrameSource(orientation: orientation)
+        defer { source.close() }
+        let info = try await source.load(page: page, readAccess: readAccess)
+        var samples: [CaptionSample] = []
+        var t = 0.0
+        while t < info.dur {
+            try Task.checkCancellation()
+            try await source.seek(String(format: "%.4f", t))
+            samples.append(CaptionSample(t: t, items: await source.visibleText()))
+            t += step
+        }
+        return CueTracker.cues(from: samples, step: step, duration: info.dur)
+    }
+
     /// Loads the page and reports what it is, without rendering.
     public static func probe(page: URL, readAccess: URL, orientation: Orientation = .portrait) async throws -> PageInfo {
         let source = WebFrameSource(orientation: orientation)

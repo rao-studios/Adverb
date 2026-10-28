@@ -95,6 +95,7 @@ public enum AssetFinisher {
         if input.music != nil, asset.originals.isEmpty, !asset.renders.isEmpty {
             asset.originals = try keepOriginals(asset, input: input)
             asset.originalA11y = asset.a11y
+            asset.originalWarp = asset.warp
         }
 
         let placement = input.placement ?? input.warp
@@ -230,9 +231,11 @@ public enum AssetFinisher {
         if let original = asset.originalA11y { out.a11y = original }
         out.originals = []
         out.originalA11y = nil
-        out.warp = nil
+        // The originals were rendered through their own warp (a voice-over's, or none).
+        out.warp = asset.originalWarp
+        out.originalWarp = nil
         if let vo = out.voiceOver, let day {
-            let input = VoiceApplyInput(paths: paths, assetPaths: a, day: day, music: nil, warp: nil)
+            let input = VoiceApplyInput(paths: paths, assetPaths: a, day: day, music: nil, warp: out.warp)
             out = try await VoiceFinisher.applyEnglish(out, selection: vo.selection, lines: vo.english.lines, scriptPath: vo.english.scriptPath, input: input)
             out = try await VoiceFinisher.deriveLanguages(out, input: input)
         }

@@ -37,12 +37,15 @@ and pick one.
 ## 3. Build it and follow the calendar
 
 **Build the month** writes and renders every day, two at a time. Built days show a still in
-the calendar; the rest show their topic. In a narrated campaign Claude also writes each day's
-voice-over, timed to its scenes, and ElevenLabs speaks it under both videos; the captions then
-carry what the voice says. If the voice step fails (no key, no characters left), the day is
+the calendar; the rest show their topic. In a narrated campaign Adverb times when each piece of text arrives
+on screen, Claude writes the voice-over line by line to that text, and ElevenLabs speaks it.
+The page then plays at the voice's pace, with the same warp a song cut uses: each line's text
+arrives on its first word, and a scene that needs longer for its line stretches to give it room.
+The captions carry what the voice says. If the voice step fails (no key, no characters left), the day is
 built silent and says why. To narrate a campaign made without a voice, choose **Turn on voice-over…**
 in its menu. Days already built can be narrated in the same step, or later with **Voice N built
-days** in the campaign's bar. Their frames are kept; only the sound is new. **Go live** marks the month you're posting and exports it
+days** in the campaign's bar. That needs no Claude build; a day is rendered again only where its
+voice needs different timing. **Go live** marks the month you're posting and exports it
 as a captions sheet, a CSV and a calendar file with an alarm at each post time. A project has one
 live campaign at a time.
 
@@ -55,12 +58,13 @@ copy the post, and **Mark posted** once it's up. Every day also ships closed cap
 SRT), a descriptions track, alt text and a transcript; **Accessibility** has them and their checks.
 
 The **Voice-over** card lists the narration line by line, each with a play button. **Add a
-voice-over…** narrates a day that was built silent, and **Another voice…** swaps the voice
-without rendering again. Once you've listened, **Confirm English**: then choose the languages
+voice-over…** narrates a day that was built silent, and **Another voice…** swaps the voice,
+rendering the page again only if the new voice needs different timing. Once you've listened, **Confirm English**: then choose the languages
 (the choice is kept for every day) and **Generate**. Claude translates the lines, ElevenLabs
 speaks them in the same voice, and each language gets its own videos, captions and transcript
-from the English frames. The player switches between them. A song cut later ducks under the
-voice, and every language is re-mixed to match.
+from the English frames, each line starting where its English one does. The player switches
+between them. A song cut on a narrated day follows the voice: each line, and the text with it,
+lands on the nearest beat, the song ducks under the voice, and every language is re-mixed.
 
 <p align="center"><img src="Docs/README_Assets/guide-day.png" alt="A day: the landscape video, its post time and reason, the post with its character count, its posted status, and its accessibility card." width="400"></p>
 

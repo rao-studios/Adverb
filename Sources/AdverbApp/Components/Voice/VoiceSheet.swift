@@ -45,8 +45,8 @@ struct VoiceSheet: View {
                     }
                 }
                 Text(current == nil
-                     ? "Claude writes the lines for this day's page, timed to its scenes; the voice speaks them over both videos, and the captions carry what it says. The frames are not rendered again."
-                     : "This replaces the day's English voice-over and keeps its words; confirm it again before making its languages, which are recorded again in the new voice.")
+                     ? "Claude writes the lines for this day's page, timed to its scenes; the voice speaks each as its text arrives, and the captions carry what it says. Where a line needs more room, the page is rendered again at the voice's pace (no Claude build)."
+                     : "This replaces the day's English voice-over and keeps its words, timed again to the new voice; confirm it again before making its languages, which are recorded again in the new voice.")
                     .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
             }
         } actions: {

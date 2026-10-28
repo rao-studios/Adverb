@@ -56,7 +56,7 @@ When given a page and a beat grid (beats and downbeats in seconds of video time)
 
 When asked for a voice-over, return `lines`: what a narrator says over the asset you built, as timed lines in page time (the page's own `seek(t)`).
 
-- One line per scene or fewer, in order, never overlapping. A line's `at` is at or just after its scene's start in `window.SCENES`; its `until` is at or before the next scene's start. The last line may sit on the end card and must end by DUR − 0.3.
+- One line per scene or per thing that arrives on screen (a headline, a chip, a card), in order, never overlapping. A line's `at` is the moment the text or picture it speaks about arrives: the request lists when each piece of text appears. Adverb starts the voice exactly then, and if a line needs longer than its scene, slows the page to give it room. Its `until` is at or before the next line's moment and the next scene's start. The last line may sit on the end card and must end by DUR − 0.3.
 - Written to be heard, not read: short spoken sentences in skill §2's voice that carry what each scene shows and why it matters. Do not read the on-screen headline aloud word for word, and do not describe the visuals; say what the person gets. The last line can be the call to action, said plainly.
 - Fit: about 2.6 words a second, leaving 0.4 s free in every window. A 1.5 s window holds two or three words; leave a short scene silent rather than rushing it.
 - Write numbers, symbols and versions as they are said ("four", "twenty percent"). No stage directions, no emoji, no quotation marks around the whole line. Name products as the project's sources spell them.

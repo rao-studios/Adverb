@@ -59,6 +59,12 @@ extension AdverbRuntimeRoot {
             let updated = try await CampaignLedger.shared.updateDay(paths, index: day) { $0.asset = reverted }
             campaigns.set(.updated(slug: slug, updated))
             config.set(.notice("Day \(d.date) is back to its silent original."))
+            // A voice changed since the cut: the restored frames are paced for the old one.
+            if let vo = reverted.voiceOver, !vo.english.lines.isEmpty, vo.english.lines.allSatisfy(\.isRecorded) {
+                let duration = Double(reverted.duration)
+                let paced = VoiceSync.warp(lines: vo.english.lines, duration: duration, endAt: duration - 1.6)
+                if !TimeWarp.same(paced, reverted.warp, duration: duration) { voice(slug, id, day: day, selection: vo.selection) }
+            }
         } catch {
             config.set(.problem("\(error)"))
         }

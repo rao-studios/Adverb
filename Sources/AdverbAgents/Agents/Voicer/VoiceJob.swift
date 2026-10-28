@@ -86,22 +86,72 @@ public enum VoiceJob {
     static func english(_ selection: VoiceSelection, rescript: Bool, day: CampaignDay, asset: Asset, project: Project, paths: CampaignPaths,
                         client: ElevenLabsClient, compute: AdverbCompute, log: RunLog, emit: @escaping @Sendable (GenerationEvent) -> Void) async throws {
         let a = paths.asset(day.stem)
+        let duration = Double(day.topic.duration)
+        let readAccess = compute.workspace.projectFolder(project.slug)
         log.line("\(day.date) · \(day.topic.title) · \(selection.voiceName) (\(selection.modelID))")
+        // The lines are timed to the page the asset was built from (before any re-cut).
+        let original = a.original.appendingPathComponent("page.html")
+        let basePage = FileManager.default.fileExists(atPath: original.path) ? original : a.page
         var lines = asset.voiceOver?.english.lines ?? []
         if rescript || lines.isEmpty {
-            // The lines are timed to the page the asset was built from (before any re-cut).
-            let original = a.original.appendingPathComponent("page.html")
-            let html = (try? String(contentsOf: FileManager.default.fileExists(atPath: original.path) ? original : a.page, encoding: .utf8)) ?? ""
-            lines = try await script(day: day, html: html, project: project, paths: paths, compute: compute, log: log, emit: emit)
+            let html = (try? String(contentsOf: basePage, encoding: .utf8)) ?? ""
+            let screen = await textTimeline(basePage, readAccess: readAccess, log: log, emit: emit)
+            lines = try await script(day: day, html: html, onScreen: screen, project: project, paths: paths, compute: compute, log: log, emit: emit)
         }
         lines = try await record(lines, language: .english, selection: selection, existing: existingLines(a, .english), assetPaths: a,
                                  paths: paths, client: client, compute: compute, log: log, emit: emit)
+
+        // The voice leads the page; with a song, its lines land on the beat.
+        var music = asset.music
+        var grid: BeatGrid?
+        if let m = music, FileManager.default.fileExists(atPath: m.songPath) {
+            grid = try? await BeatAnalyzer.shared.analyzeWindow(URL(fileURLWithPath: m.songPath), inPoint: m.inPoint, duration: duration)
+                .adjusted(octave: m.octave, phaseNudge: m.phaseNudge)
+        }
+        let warp = voiceWarp(lines, duration: duration, grid: grid, log: log)
+        let retimed = music?.mode == .retime
         let tell = StepTeller(emit)
-        let input = VoiceApplyInput(paths: paths, assetPaths: a, day: day, music: asset.music, warp: asset.warp, progress: { tell($0, $1) })
-        let updated = try await VoiceFinisher.applyEnglish(asset, selection: selection, lines: lines, scriptPath: paths.relative(a.script(.english)), input: input)
+        let updated: Asset
+        if (music != nil && grid == nil) || (!retimed && TimeWarp.same(warp, asset.warp, duration: duration)) {
+            // The frames already play at the voice's pace: only the sound changes.
+            if music != nil, grid == nil { log.line("the song is not where it was; the voice is mixed onto the cut as it is") }
+            let input = VoiceApplyInput(paths: paths, assetPaths: a, day: day, music: music, warp: asset.warp, progress: { tell($0, $1) })
+            updated = try await VoiceFinisher.applyEnglish(asset, selection: selection, lines: lines, scriptPath: paths.relative(a.script(.english)), input: input)
+        } else {
+            // The page plays at the voice's pace: rendered again (no Claude call), the song under it.
+            var html = (try? String(contentsOf: basePage, encoding: .utf8)) ?? ""
+            if music != nil {
+                html = Beatmap.withBeatScripts(html, kitPrefix: PageVerifier.relativePath(from: a.folder, to: compute.kitFolder(project)),
+                                               beatsFile: a.beats.lastPathComponent)
+                if retimed { log.line("a narrated asset follows its voice: the Claude re-time gives way to the voice's lines on the beat") }
+                music?.mode = .warp
+            }
+            try AtomicFile.write(html, to: a.page)
+            var input = FinishInput(paths: paths, assetPaths: a, readAccess: readAccess, day: day, html: html, notes: asset.notes,
+                                    altText: asset.a11y.altText, descriptions: asset.pageDescriptions,
+                                    scale: compute.settings.supersample ? 2 : 1, bitrate: compute.settings.bitrateMbps * 1_000_000,
+                                    music: music, mix: music.map { AudioMixSpec(song: URL(fileURLWithPath: $0.songPath), inPoint: $0.inPoint, duration: duration,
+                                                                                fadeOut: $0.fadeOut, gainDB: $0.gainDB) },
+                                    warp: warp, previous: asset, runID: log.id)
+            input.renderer = compute.settings.renderer
+            input.kit = compute.kitFolder(project)
+            input.placement = warp
+            input.narration = NarrationInput(voice: selection, lines: lines, scriptPath: paths.relative(a.script(.english)))
+            emit(.step("Stills"))
+            let finalInput = input
+            let stills = try await AssetFinisher.stills(finalInput)
+            emit(.step("Waiting to render"))
+            var rendered = try await RenderGate.shared.run {
+                try await AssetFinisher.finish(finalInput, stills: stills, progress: { step, p in emit(.step(step.rawValue)); emit(.progress(p)) })
+            }
+            rendered.reviewed = asset.reviewed
+            let languages = VoiceApplyInput(paths: paths, assetPaths: a, day: day, music: music, warp: warp, progress: { tell($0, $1) })
+            updated = try await VoiceFinisher.deriveLanguages(rendered, input: languages)
+        }
         for render in updated.renders { log.line("\(render.orientation.rawValue): \(render.report?.line ?? render.path)") }
         for check in updated.a11y.checks { log.line("a11y \(check.level.rawValue): \(check.message)") }
-        try await CampaignLedger.shared.updateDay(paths, index: day.index) { d in d.asset = updated; d.problem = nil }
+        let written = updated
+        try await CampaignLedger.shared.updateDay(paths, index: day.index) { d in d.asset = written; d.problem = nil }
         emit(.dayDone(day.index))
     }
 
@@ -143,13 +193,16 @@ public enum VoiceJob {
     // MARK: - Shared with the build
 
     /// Claude's lines for the page, held to the contract (one round of fixes).
-    public static func script(day: CampaignDay, html: String, project: Project, paths: CampaignPaths, compute: AdverbCompute, log: RunLog,
+    /// `onScreen`: when each piece of text arrives (page time); each line is timed to the one it
+    /// speaks about.
+    public static func script(day: CampaignDay, html: String, onScreen: [Cue], project: Project, paths: CampaignPaths, compute: AdverbCompute, log: RunLog,
                               emit: @escaping @Sendable (GenerationEvent) -> Void) async throws -> [NarrationLine] {
         emit(.step("Scripting the voice-over"))
         log.step("Scripting the voice-over", day: day.index)
         let digest = try compute.digest(project, paths: paths)
         let duration = Double(day.topic.duration)
-        let messages = compute.prompts.narrate(digest: digest.text, day: day, scenes: PageVerifier.scenes(html), duration: day.topic.duration, project: project)
+        let messages = compute.prompts.narrate(digest: digest.text, day: day, scenes: PageVerifier.scenes(html), duration: day.topic.duration,
+                                               project: project, onScreen: onScreen)
         var request = ClaudeRequest(system: compute.prompts.system, messages: messages, schema: Schemas.narration, maxTokens: 16_000)
         var (answer, message) = try await ClaudeCall.structured(NarrationResponse.self, client: compute.client, request: request, log: log, emit: emit)
         var lines = NarrationCaptions.lines(from: answer)
@@ -165,8 +218,32 @@ public enum VoiceJob {
             let pacing = NarrationCaptions.problems(lines, duration: duration)
             if !pacing.isEmpty { log.line("kept with pacing notes: \(pacing.joined(separator: " | "))") }
         }
+        lines = VoiceSync.anchor(lines, to: onScreen)
         for line in lines { log.line(String(format: "%5.2f–%5.2f  %@", line.at, line.until, line.text)) }
         return lines
+    }
+
+    /// When each piece of text arrives on the page, for the script to be timed to (none if the
+    /// page will not load: the script then keeps Claude's own times).
+    public static func textTimeline(_ page: URL, readAccess: URL, log: RunLog, emit: @escaping @Sendable (GenerationEvent) -> Void) async -> [Cue] {
+        emit(.step("Timing the text"))
+        do {
+            let cues = try await PageRenderer.textTimeline(page: page, readAccess: readAccess)
+            log.line("on screen: \(cues.count) pieces of text")
+            return cues
+        } catch {
+            log.line("the page's text could not be timed (\(error)); the voice keeps Claude's times")
+            return []
+        }
+    }
+
+    /// The warp a narrated asset plays through: its voice leads, and with a song its lines land
+    /// on the beat.
+    public static func voiceWarp(_ lines: [NarrationLine], duration: Double, grid: BeatGrid?, log: RunLog) -> TimeWarp? {
+        let warp = VoiceSync.warp(lines: lines, duration: duration, endAt: duration - 1.6, grid: grid)
+        if let warp { log.line("voice warp: " + warp.knots.map { String(format: "%.2f→%.2f", $0.page, $0.real) }.joined(separator: ", ")) }
+        else { log.line("the voice fits the page as it is: no warp") }
+        return warp
     }
 
     /// The lines spoken; lines too long even at 1.15× shortened by Claude once and spoken again.

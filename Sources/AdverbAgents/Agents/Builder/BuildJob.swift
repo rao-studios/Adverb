@@ -55,16 +55,19 @@ public enum BuildJob {
 
             // 1b. The voice-over, when the campaign is narrated.
             var narration: NarrationInput?
+            var voiceWarp: TimeWarp?
             var voiceProblem: String?
             if let selection = campaign.brief.voiceOver {
                 if let client = compute.voice {
                     do {
                         // A rebuild replaces the day's voice-over: the old languages' files go.
                         for track in day.asset?.voiceOver?.languages ?? [] { VoiceFinisher.removeFiles(of: track.language, assetPaths: a) }
-                        let lines = try await VoiceJob.script(day: day, html: html, project: project, paths: paths, compute: compute, log: log, emit: emit)
+                        let screen = await VoiceJob.textTimeline(a.page, readAccess: readAccess, log: log, emit: emit)
+                        let lines = try await VoiceJob.script(day: day, html: html, onScreen: screen, project: project, paths: paths, compute: compute, log: log, emit: emit)
                         let recorded = try await VoiceJob.record(lines, language: .english, selection: selection, existing: VoiceJob.existingLines(a, .english),
                                                                  assetPaths: a, paths: paths, client: client, compute: compute, log: log, emit: emit)
                         narration = NarrationInput(voice: selection, lines: recorded, scriptPath: paths.relative(a.script(.english)))
+                        voiceWarp = VoiceJob.voiceWarp(recorded, duration: Double(day.topic.duration), grid: nil, log: log)
                     } catch is CancellationError {
                         throw CancellationError()
                     } catch {
@@ -86,6 +89,9 @@ public enum BuildJob {
             input.renderer = compute.settings.renderer
             input.kit = kit
             input.narration = narration
+            // The page plays at the voice's pace: each line's text arrives on its first word.
+            input.warp = voiceWarp
+            input.placement = voiceWarp
 
             // 2. Stills, and Claude's look at them.
             emit(.step("Stills"))

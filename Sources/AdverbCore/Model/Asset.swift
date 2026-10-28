@@ -32,6 +32,8 @@ public struct Asset: Codable, Sendable, Equatable, Hashable {
     /// Original page time → video time, kept when a re-cut moved the scenes, so a language track
     /// made later places its clips where the English ones landed.
     public var warp: TimeWarp?
+    /// The warp the originals were rendered through, kept beside them for a revert.
+    public var originalWarp: TimeWarp?
     public var reviewed: Bool
     public var builtAt: Date
     public var buildRunID: UUID?
@@ -46,6 +48,14 @@ public struct Asset: Codable, Sendable, Equatable, Hashable {
     }
 
     public func render(_ orientation: Orientation) -> Render? { renders.first { $0.orientation == orientation } }
+
+    /// The descriptions in page time: the stored ones are in video time, through the warp they were
+    /// made with. The silent originals' when there are some (a re-cut starts from those).
+    public var pageDescriptions: [Cue] {
+        let (cues, warp) = originalA11y.map { ($0.descriptions, originalWarp) } ?? (a11y.descriptions, self.warp)
+        guard let warp else { return cues }
+        return cues.map { Cue(start: warp.pageTime(forReal: $0.start), end: warp.pageTime(forReal: $0.end), text: $0.text, kind: .description) }
+    }
     public func stills(_ orientation: Orientation) -> [Still] { stills.filter { $0.orientation == orientation } }
 }
 

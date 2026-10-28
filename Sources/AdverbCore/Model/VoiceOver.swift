@@ -97,8 +97,12 @@ public struct NarrationLine: Codable, Sendable, Equatable, Hashable {
         self.characters = characters; self.requestID = requestID; self.speed = speed; self.shortened = shortened; self.cacheKey = cacheKey
     }
 
-    /// When the clip starts in the video: the line's page time through the warp.
-    public func placedStart(warp: TimeWarp?) -> Double { warp?.realTime(forPage: at) ?? at }
+    /// When the voice starts the line in the video: the line's page time through the warp, the
+    /// moment its text arrives.
+    public func speechStart(warp: TimeWarp?) -> Double { warp?.realTime(forPage: at) ?? at }
+
+    /// When the clip starts in the video: early by its lead-in, so the first word is on the text.
+    public func placedStart(warp: TimeWarp?) -> Double { max(0, speechStart(warp: warp) - (spokenStart ?? 0)) }
 
     /// The window the speech may fill, in seconds.
     public var window: Double { max(0, until - at) }
