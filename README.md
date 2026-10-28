@@ -64,6 +64,20 @@ optional Chrome renderer needs Python with Playwright, and Settings checks for i
 
 ![Settings, Claude page: the API key, the model and effort, and the planning switches.](Docs/README_Assets/guide-settings.png)
 
+## Cost sheet
+
+A rolling log of what Adverb costs to run on the Claude API, newest first. Add a row each time you
+log a new run. Model and effort are the Settings defaults at the time; prices are list price per
+million tokens (input / output).
+
+| Date | What | Model (effort) | Price in / out | Tokens (in / out / cache read / cache write) | Cost |
+| --- | --- | --- | --- | --- | --- |
+| 2026-10-28 | Plan a 30-day month for one project (Ambient) | `claude-opus-5-5` (high) | $4 / $20 | 462 / 62,410 / 371,687 / 117,748 | **$2.05** |
+
+The plan is the only step that calls Claude; building and rendering the month run on your Mac. Output
+tokens are most of the bill, so a lower effort or a smaller model is the lever: `claude-sonnet-5-5`
+lists at $2 / $10.
+
 ## Where things live
 
 | What | Where |
