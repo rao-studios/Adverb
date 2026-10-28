@@ -52,6 +52,10 @@ struct RunsStrip: View {
             parts.append(String(format: "%.0f%% from cache", usage.cacheHitRate * 100))
             parts.append(String(format: "≈ $%.2f", usage.estimatedUSD(model: model)))
         }
+        let voice = runs.compactMap(\.voice).reduce(VoiceUsage()) { $0 + $1 }
+        if !voice.isEmpty {
+            parts.append(String(format: "%@ characters voiced ≈ $%.2f", voice.characters.formatted(), voice.estimatedUSD()))
+        }
         return parts.joined(separator: " · ")
     }
 
@@ -94,6 +98,7 @@ struct RunsStrip: View {
         switch run.kind {
         case "Plan": return "Plan"
         case "Beatmap": return "Day \(run.dayIndex ?? 0) · music"
+        case "Voice": return "Day \(run.dayIndex ?? 0) · voice"
         default: return "Day \(run.dayIndex ?? 0)"
         }
     }

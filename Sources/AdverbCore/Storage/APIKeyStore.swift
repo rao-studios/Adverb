@@ -2,9 +2,10 @@
 //  APIKeyStore.swift
 //  AdverbCore
 //
-//  WHAT: Where Adverb finds the Claude API key, in order: its own Keychain item (service
-//        nyc.rao.adverb, account ANTHROPIC_API_KEY), then ANTHROPIC_API_KEY in the environment.
-//        The environment is read, never written; "Forget" removes only the Keychain item.
+//  WHAT: Where Adverb finds its API keys, in order: its own Keychain item (service nyc.rao.adverb,
+//        account ANTHROPIC_API_KEY for Claude, ELEVENLABS_API_KEY for ElevenLabs), then the
+//        variable of the same name in the environment. The environment is read, never written;
+//        "Forget" removes only the Keychain item.
 //  PIN:  The item is written and read through /usr/bin/security, so it trusts that tool rather
 //        than this binary's changing ad-hoc signature and survives rebuilds (Bless's playground,
 //        Leviathan's recipe). The key reaches `security` on stdin as hex, never in arguments, so it
@@ -34,12 +35,15 @@ public enum KeySource: Sendable, Equatable {
     case keychain
     case environment
 
-    public var label: String {
+    public func label(env: String) -> String {
         switch self {
         case .keychain: "Adverb's Keychain item"
-        case .environment: "ANTHROPIC_API_KEY in the environment"
+        case .environment: "\(env) in the environment"
         }
     }
+
+    /// The Claude key's label.
+    public var label: String { label(env: KeyResolver.claudeEnv) }
 }
 
 public struct ResolvedKey: Sendable, Equatable {
@@ -70,26 +74,29 @@ public protocol KeyStore: Sendable {
 
 public struct KeychainKeyStore: KeyStore {
     public static let service = "nyc.rao.adverb"
-    public static let account = "ANTHROPIC_API_KEY"
+    public static let claudeAccount = "ANTHROPIC_API_KEY"
+    public static let elevenLabsAccount = "ELEVENLABS_API_KEY"
 
-    public init() {}
+    public let account: String
+
+    public init(account: String = KeychainKeyStore.claudeAccount) { self.account = account }
 
     public func read() throws -> Secret? {
-        let found = Self.run(["find-generic-password", "-s", Self.service, "-a", Self.account, "-w"])
+        let found = Self.run(["find-generic-password", "-s", Self.service, "-a", account, "-w"])
         if found.status == -1 { throw KeyStoreError.toolUnavailable }
         guard found.status == 0 else { return nil }  // 44: no such item
         return Secret(String(decoding: found.output, as: UTF8.self))
     }
 
     public func write(_ secret: Secret) throws {
-        let saved = Self.run(["-i"], input: Data(Self.addCommand(service: Self.service, account: Self.account, secret: secret).utf8))
+        let saved = Self.run(["-i"], input: Data(Self.addCommand(service: Self.service, account: account, secret: secret).utf8))
         if saved.status == -1 { throw KeyStoreError.toolUnavailable }
         // `security -i` exits 0 even when a command inside it fails: confirm by reading back.
         guard saved.status == 0, try read() == secret else { throw KeyStoreError.notSaved(hint: Self.clip(saved.error)) }
     }
 
     public func forget() throws {
-        let removed = Self.run(["delete-generic-password", "-s", Self.service, "-a", Self.account])
+        let removed = Self.run(["delete-generic-password", "-s", Self.service, "-a", account])
         guard removed.status == 0 || removed.status == 44 else { throw KeyStoreError.notRemoved(hint: Self.clip(removed.error)) }
     }
 
@@ -134,11 +141,16 @@ public final class MemoryKeyStore: KeyStore, @unchecked Sendable {
 }
 
 public struct KeyResolver: Sendable {
+    public static let claudeEnv = "ANTHROPIC_API_KEY"
+    public static let elevenLabsEnv = "ELEVENLABS_API_KEY"
+
     public let store: any KeyStore
     public let environment: [String: String]
+    /// The environment variable read when the Keychain has no item.
+    public let envName: String
 
-    public init(store: any KeyStore, environment: [String: String]) {
-        self.store = store; self.environment = environment
+    public init(store: any KeyStore, environment: [String: String], envName: String = KeyResolver.claudeEnv) {
+        self.store = store; self.environment = environment; self.envName = envName
     }
 
     public static func live() -> KeyResolver {
@@ -147,7 +159,7 @@ public struct KeyResolver: Sendable {
 
     public func resolve() -> ResolvedKey? {
         if let secret = try? store.read() { return ResolvedKey(secret: secret, source: .keychain) }
-        if let secret = environment["ANTHROPIC_API_KEY"].flatMap(Secret.init) { return ResolvedKey(secret: secret, source: .environment) }
+        if let secret = environment[envName].flatMap(Secret.init) { return ResolvedKey(secret: secret, source: .environment) }
         return nil
     }
 }

@@ -43,6 +43,11 @@ extension ConfigService {
             public var keySource: KeySource?
             public var keyMasked: String?
             public var keyChecked: Bool?
+            /// The ElevenLabs key: optional, never a gate.
+            public var voiceKeySource: KeySource?
+            public var voiceKeyMasked: String?
+            public var voiceKeyChecked: Bool?
+            public var voiceQuota: VoiceQuota?
             public var gate: Gate = .loading
             public var toolchain: [ToolCheck] = []
             public var notice: String?
@@ -50,6 +55,7 @@ extension ConfigService {
             public init() {}
 
             public var hasKey: Bool { keySource != nil }
+            public var hasVoiceKey: Bool { voiceKeySource != nil }
         }
 
         @Event public var set: Set.Reducer

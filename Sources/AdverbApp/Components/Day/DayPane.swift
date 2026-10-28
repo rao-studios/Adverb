@@ -4,9 +4,10 @@
 //
 //  WHAT: One posting day, beside the calendar: the asset playing (portrait or landscape, captions
 //        on), when to post and why, the post itself to copy, marking it posted, the accessibility
-//        files, the music, and what in the asset is illustrative.
+//        files, the music, the voice-over and its languages, and what in the asset is illustrative.
 //  IN:   the day (from CampaignService), its run (GenerationService)
-//  OUT:  AdverbRuntimeRoot (build, setStatus, editDay, revert), the music sheet
+//  OUT:  AdverbRuntimeRoot (build, setStatus, editDay, revert, confirmEnglish, languages), the
+//        music sheet, the voice sheet
 //
 
 import AdverbAgents
@@ -54,6 +55,10 @@ struct DayPane: View {
                         MusicCard(asset: asset, busy: run?.phase == .running,
                                   choose: { selection.sheet = .music(slug: project.slug, campaign: campaign.id, day: day.index) },
                                   revert: { Task { await root.revert(project.slug, campaign.id, day: day.index) } })
+                        VoiceCard(asset: asset, paths: paths, busy: run?.phase == .running,
+                                  choose: { selection.sheet = .voice(slug: project.slug, campaign: campaign.id, day: day.index) },
+                                  confirm: { Task { await root.confirmEnglish(project.slug, campaign.id, day: day.index) } },
+                                  generate: { languages in root.languages(project.slug, campaign.id, day: day.index, languages) })
                         NotesCard(notes: asset.notes, reviewed: asset.reviewed)
                         FilesCard(asset: asset, paths: paths, stem: day.stem)
                     }
@@ -73,7 +78,12 @@ struct DayPane: View {
             Spacer()
             Menu {
                 Button(day.asset == nil ? "Build this day" : "Rebuild this day") { root.build(project.slug, campaign.id, day: day.index) }
-                if day.asset != nil { Button("Cut to a song…") { selection.sheet = .music(slug: project.slug, campaign: campaign.id, day: day.index) } }
+                if day.asset != nil {
+                    Button("Cut to a song…") { selection.sheet = .music(slug: project.slug, campaign: campaign.id, day: day.index) }
+                    Button(day.asset?.voiceOver == nil ? "Add a voice-over…" : "Another voice…") {
+                        selection.sheet = .voice(slug: project.slug, campaign: campaign.id, day: day.index)
+                    }
+                }
                 Divider()
                 Button("Close") { selection.dayIndex = nil }
             } label: { Image(systemName: "ellipsis.circle") }

@@ -19,8 +19,9 @@ setvbuf(stdout, nil, _IOLBF, 0)
 let args = CommandLine.arguments
 
 // Subcommands on finished files: `sheet <portrait.mp4> <landscape.mp4> <title> <out.jpg>`,
-// `grab <video.mp4> <seconds> <out.png>`, `inspect <video.mp4>`, `beats <song>`.
-if args.count >= 2, ["sheet", "grab", "inspect", "beats"].contains(args[1]) {
+// `grab <video.mp4> <seconds> <out.png>`, `inspect <video.mp4>`, `beats <song>`,
+// `remux <video.mp4> <clip> <start-s> <out.mp4>` (the clip laid at start-s as a voice-over).
+if args.count >= 2, ["sheet", "grab", "inspect", "beats", "remux"].contains(args[1]) {
     let done = DispatchSemaphore(value: 0)
     Task {
         do {
@@ -39,6 +40,11 @@ if args.count >= 2, ["sheet", "grab", "inspect", "beats"].contains(args[1]) {
                 print(String(format: "%.1f s song · %.1f BPM · confidence %.2f · %d beats · %d downbeats%@ · %.2f s", duration, grid.bpm, grid.confidence,
                              grid.beats.count, grid.downbeats.count, grid.nominal ? " · nominal" : "", Date().timeIntervalSince(t0)))
                 print("first beats: \(grid.beats.prefix(8)) · first downbeats: \(grid.downbeats.prefix(4)) · in-point for 15 s: \(grid.suggestedInPoint(for: 15))")
+            case "remux":
+                let t0 = Date()
+                let mix = AudioMixSpec(voice: VoiceLayer(clips: [VoiceClip(url: URL(fileURLWithPath: args[3]), startReal: Double(args[4]) ?? 0)]), duration: 0)
+                let report = try await AudioRemux.replaceAudio(in: URL(fileURLWithPath: args[2]), mix: mix, to: URL(fileURLWithPath: args[5]))
+                print(String(format: "%@ · remuxed in %.2f s", report.line, Date().timeIntervalSince(t0)))
             default:
                 print(try await RenderInspector.inspect(URL(fileURLWithPath: args[2])).line)
             }
@@ -203,7 +209,7 @@ if args.count >= 4, args[1] == "finish" {
                 asset = try await AssetFinisher.finish(input, stills: try await AssetFinisher.stills(input))
                 print(String(format: "beatmapped in %.1f s; originals kept: %d", Date().timeIntervalSince(t0), asset.originals.count))
                 for r in asset.renders { print("  \(r.orientation.rawValue): \(r.report?.line ?? "")") }
-                let reverted = try AssetFinisher.revert(asset, paths: paths, assetPaths: a)
+                let reverted = try await AssetFinisher.revert(asset, paths: paths, assetPaths: a)
                 print("reverted: music \(reverted.music == nil ? "cleared" : "kept"), renders \(reverted.renders.map(\.path))")
             }
             exit(0)

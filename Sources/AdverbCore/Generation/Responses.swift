@@ -73,3 +73,10 @@ public struct RetimeResponse: Codable, Sendable, Equatable {
     public var html: String
     public var cues: [CueMark]
 }
+
+public struct NarrationResponse: Codable, Sendable, Equatable {
+    public struct Line: Codable, Sendable, Equatable { public var at: Double; public var until: Double; public var text: String
+        public init(at: Double, until: Double, text: String) { self.at = at; self.until = until; self.text = text } }
+    public var lines: [Line]
+    public init(lines: [Line]) { self.lines = lines }
+}

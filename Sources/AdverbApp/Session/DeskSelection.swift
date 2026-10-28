@@ -14,6 +14,8 @@ enum DeskSheet: Identifiable, Equatable {
     case manageProject(String)
     case newCampaign(String)
     case music(slug: String, campaign: UUID, day: Int)
+    case voice(slug: String, campaign: UUID, day: Int)
+    case campaignVoice(slug: String, campaign: UUID)
 
     var id: String {
         switch self {
@@ -21,6 +23,8 @@ enum DeskSheet: Identifiable, Equatable {
         case .manageProject(let s): "manage-\(s)"
         case .newCampaign(let s): "new-campaign-\(s)"
         case .music(_, let c, let d): "music-\(c)-\(d)"
+        case .voice(_, let c, let d): "voice-\(c)-\(d)"
+        case .campaignVoice(_, let c): "campaign-voice-\(c)"
         }
     }
 }
@@ -35,6 +39,8 @@ final class DeskSelection {
     var showRuns = true
     /// The orientation the day pane plays.
     var orientation: String = "portrait"
+    /// The language the day pane plays ("en", or a voice-over's language code).
+    var language: String = "en"
 
     func select(project slug: String?) {
         guard slug != projectSlug else { campaignID = nil; dayIndex = nil; return }
@@ -43,7 +49,7 @@ final class DeskSelection {
 
     func select(campaign id: UUID, in slug: String) {
         if projectSlug != slug { projectSlug = slug }
-        if campaignID != id { dayIndex = nil }
+        if campaignID != id { dayIndex = nil; language = "en" }
         campaignID = id
     }
 }

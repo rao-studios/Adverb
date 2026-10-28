@@ -3,7 +3,7 @@
 //  AdverbCore
 //
 //  WHAT: What the person asks for: when the month starts, where the audience is, which platforms,
-//        which days to post, how long the assets run, what to feature.
+//        which days to post, how long the assets run, what to feature, and the voice, if narrated.
 //
 
 import Foundation
@@ -24,14 +24,16 @@ public struct CampaignBrief: Codable, Sendable, Equatable, Hashable {
     public var apps: [String]
     public var goals: String
     public var notes: String
+    /// Narrate every asset with this ElevenLabs voice; nil keeps them silent.
+    public var voiceOver: VoiceSelection?
 
     public init(startDate: String, lengthDays: Int = 30, timeZone: String = TimeZone.current.identifier,
                 audienceRegion: String = "", platforms: [Platform] = [.instagramReels, .tiktok, .linkedin, .x],
                 postDays: [Weekday] = Weekday.all, durations: [Int] = [15, 30], apps: [String] = [],
-                goals: String = "", notes: String = "") {
+                goals: String = "", notes: String = "", voiceOver: VoiceSelection? = nil) {
         self.startDate = startDate; self.lengthDays = lengthDays; self.timeZone = timeZone
         self.audienceRegion = audienceRegion; self.platforms = platforms; self.postDays = postDays
-        self.durations = durations; self.apps = apps; self.goals = goals; self.notes = notes
+        self.durations = durations; self.apps = apps; self.goals = goals; self.notes = notes; self.voiceOver = voiceOver
     }
 
     public var zone: TimeZone { TimeZone(identifier: timeZone) ?? .current }

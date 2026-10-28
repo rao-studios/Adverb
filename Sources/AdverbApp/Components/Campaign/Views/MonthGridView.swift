@@ -31,7 +31,7 @@ struct MonthGridView: View {
                         Color.clear.frame(height: AdverbLayout.calendarCellHeight)
                     } else {
                         let day = cell.dayIndex.flatMap { campaign.day($0) }
-                        let run = day.flatMap { runs[RunKey.build(campaign.id, $0.index)] ?? runs[RunKey.beat(campaign.id, $0.index)] }
+                        let run = day.flatMap { RunKey.dayRun(in: runs, campaign.id, $0.index) }
                         DayCell(cell: cell, day: day, run: run?.phase == .running ? run : nil,
                                 root: AdverbCellRoot(slug: slug, campaignID: campaign.id),
                                 selected: day != nil && selection.dayIndex == day?.index) {

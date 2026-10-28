@@ -12,12 +12,18 @@ public enum RunKind: Codable, Sendable, Equatable, Hashable {
     case plan
     case build(days: [Int])
     case beatmap(day: Int)
+    /// A day's English voice-over: scripted, recorded and mixed.
+    case voice(day: Int)
+    /// A day's narration in other languages, after its English was confirmed.
+    case languages(day: Int, [Language])
 
     public var title: String {
         switch self {
         case .plan: "Plan"
         case .build(let days): days.count == 1 ? "Build" : "Build \(days.count) days"
         case .beatmap: "Beatmap"
+        case .voice: "Voice-over"
+        case .languages(_, let languages): languages.count == 1 ? languages[0].title : "\(languages.count) languages"
         }
     }
 
@@ -26,6 +32,8 @@ public enum RunKind: Codable, Sendable, Equatable, Hashable {
         case .plan: "plan"
         case .build: "build"
         case .beatmap: "beatmap"
+        case .voice: "voice"
+        case .languages: "languages"
         }
     }
 }
@@ -100,6 +108,8 @@ public struct GenerationRun: Codable, Sendable, Equatable, Identifiable, Hashabl
     public var outcome: RunOutcome
     public var steps: [StepRecord]
     public var usage: TokenUsage
+    /// What the run spent at ElevenLabs, when it spoke.
+    public var voice: VoiceUsage?
     /// Relative to the campaign folder.
     public var logPath: String
 

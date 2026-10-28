@@ -9,6 +9,22 @@ import Testing
         #expect(RunKey.parse(RunKey.plan(id)).campaign == id)
         #expect(RunKey.parse(RunKey.build(id, 7)).day == 7)
         #expect(RunKey.parse(RunKey.beat(id, 3)).kind == "Beatmap")
+        let voice = RunKey.parse(RunKey.voice(id, 4))
+        #expect(voice.kind == "Voice" && voice.campaign == id && voice.day == 4)
+        #expect(RunKey.voice(id, 4).hasPrefix(RunKey.voicePrefix(id)))
+    }
+
+    @Test func aDayShowsWhicheverRunIsWorkingOnIt() {
+        var state = GenerationService.Center.State()
+        let id = UUID()
+        GenerationOps.lifecycle(.running, message: nil, key: RunKey.build(id, 3), to: &state)
+        GenerationOps.lifecycle(.finished, message: nil, key: RunKey.build(id, 3), to: &state)
+        #expect(state.dayRun(id, 3)?.kind == "Build")
+        GenerationOps.lifecycle(.running, message: nil, key: RunKey.voice(id, 3), to: &state)
+        #expect(state.dayRun(id, 3)?.kind == "Voice")
+        #expect(state.dayRun(id, 4) == nil)
+        GenerationOps.event(.voiceUsage(VoiceUsage(characters: 230, requests: 4)), key: RunKey.voice(id, 3), to: &state)
+        #expect(state.runs[RunKey.voice(id, 3)]?.voice?.characters == 230)
     }
 
     @Test func eventsFoldIntoARun() {
@@ -37,6 +53,7 @@ import Testing
         #expect(AgentStream.coalesce(.activity("a"), .activity("b")) == .activity("ab"))
         #expect(AgentStream.coalesce(.progress(0.1), .progress(0.2)) == .progress(0.2))
         #expect(AgentStream.coalesce(.step("a"), .step("b")) == nil)
+        #expect(AgentStream.coalesce(.voiceUsage(VoiceUsage(characters: 1)), .voiceUsage(VoiceUsage(characters: 9))) == .voiceUsage(VoiceUsage(characters: 9)))
     }
 
     @Test func gridAdjustments() {

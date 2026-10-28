@@ -86,6 +86,18 @@ import Testing
         #expect(s.model == "claude-sonnet-5-5")
         #expect(s.effort == "high")
         #expect(s.renderer == .native)
+        #expect(s.voiceOverDefault == false)
+        #expect(s.voiceModel == "eleven_multilingual_v2")
+        #expect(s.voiceLanguages.isEmpty)
+        #expect(s.voiceSelection == nil)
+        try #"{"voiceLanguages":["es","zz","fr"],"voiceOverDefault":true,"voiceID":"v1","voiceName":"Rachel"}"#.write(to: url, atomically: true, encoding: .utf8)
+        let v = AdverbSettings.load(from: url)
+        #expect(v.voiceLanguages == [.french, .spanish])
+        #expect(v.voiceOverDefault)
+        #expect(v.voiceSelection == VoiceSelection(voiceID: "v1", voiceName: "Rachel"))
+        // Round trip keeps them.
+        try v.save(to: url)
+        #expect(AdverbSettings.load(from: url) == v)
     }
 
     @Test func secretsNeverPrint() {
@@ -98,6 +110,15 @@ import Testing
         let both = KeyResolver(store: MemoryKeyStore(Secret("sk-own")), environment: ["ANTHROPIC_API_KEY": "sk-env"])
         #expect(both.resolve()?.secret.value == "sk-own")
         #expect(KeychainKeyStore.addCommand(service: "s", account: "a", secret: Secret("ab")!).hasSuffix("-X 6162\n"))
+        // The ElevenLabs key: its own account and variable; the Claude variable never stands in for it.
+        let voice = KeyResolver(store: MemoryKeyStore(), environment: ["ANTHROPIC_API_KEY": "sk-env"], envName: KeyResolver.elevenLabsEnv)
+        #expect(voice.resolve() == nil)
+        let fromEnv = KeyResolver(store: MemoryKeyStore(), environment: ["ELEVENLABS_API_KEY": "xi-env"], envName: KeyResolver.elevenLabsEnv)
+        #expect(fromEnv.resolve()?.source == .environment)
+        #expect(KeychainKeyStore(account: KeychainKeyStore.elevenLabsAccount).account == "ELEVENLABS_API_KEY")
+        #expect(KeychainKeyStore().account == "ANTHROPIC_API_KEY")
+        #expect(KeySource.environment.label(env: KeyResolver.elevenLabsEnv) == "ELEVENLABS_API_KEY in the environment")
+        #expect(KeySource.environment.label == "ANTHROPIC_API_KEY in the environment")
     }
 
     @Test func campaignPathsName() {

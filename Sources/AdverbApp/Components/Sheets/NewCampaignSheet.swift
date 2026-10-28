@@ -3,8 +3,9 @@
 //  Adverb
 //
 //  WHAT: The brief for a month: when it starts and how long, where the audience is, which platforms,
-//        which days to post, how long the assets run, what to feature and why. Creates a draft and
-//        starts planning it.
+//        which days to post, how long the assets run, what to feature and why, and whether an
+//        ElevenLabs voice narrates each asset (the key asked for here when there is none). Creates a
+//        draft and starts planning it.
 //
 
 import AdverbCore
@@ -26,6 +27,12 @@ struct NewCampaignSheet: View {
     @State private var goals = ""
     @State private var notes = ""
     @State private var creating = false
+    @State private var voiceOn = false
+    @State private var voice: VoiceSelection?
+    @State private var voiceModel = VoiceSelection.defaultModel
+    @State private var hasVoiceKey = false
+    @State private var voiceKeyDraft = ""
+    @State private var pickingVoice = false
 
     static let zones = ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris",
                         "Europe/Berlin", "Asia/Kolkata", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney"]
@@ -37,8 +44,10 @@ struct NewCampaignSheet: View {
         return CampaignBrief(startDate: CalendarDate.string(start, in: zone), lengthDays: length, timeZone: timeZone,
                              audienceRegion: audience, platforms: Platform.allCases.filter(platforms.contains), postDays: Weekday.all.filter(postDays.contains),
                              durations: [15, 30].filter(durations.contains), apps: apps.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
-                             goals: goals, notes: notes)
+                             goals: goals, notes: notes, voiceOver: voiceOn ? voice : nil)
     }
+
+    var root: AdverbRuntimeRoot { AdverbRuntimeRoot.shared }
 
     var body: some View {
         SheetFrame(kicker: "New campaign · \(project?.name ?? slug)", title: "A month of *motion.*", width: AdverbLayout.sheetWidth + 60) {
@@ -78,7 +87,8 @@ struct NewCampaignSheet: View {
                     }
                 }
             }
-            Text("\(brief.postDates.count) posts, \(brief.windowDates.first ?? "") to \(brief.windowDates.last ?? ""). Each is a portrait and a landscape video with captions, a caption to post, hashtags, alt text and its time.")
+            voiceRow
+            Text("\(brief.postDates.count) posts, \(brief.windowDates.first ?? "") to \(brief.windowDates.last ?? ""). Each is a portrait and a landscape video with captions, a caption to post, hashtags, alt text and its time.\(voiceOn && voice != nil ? " Each is narrated by \(voice!.voiceName)." : "")")
                 .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
             FormRow(label: "Feature", hint: "Comma separated; empty features the project's own app.") {
                 AdverbTextField(placeholder: project?.app.name ?? "Ambient", text: $apps)
@@ -86,7 +96,7 @@ struct NewCampaignSheet: View {
             FormRow(label: "Goals") { AdverbTextArea(text: $goals, minHeight: 54) }
             FormRow(label: "Notes for the planner") { AdverbTextArea(text: $notes, minHeight: 54) }
         } actions: {
-            Button("Cancel") { selection.sheet = nil }.buttonStyle(.adverbQuiet).keyboardShortcut(.cancelAction)
+            Button("Cancel") { root.stopPreview(); selection.sheet = nil }.buttonStyle(.adverbQuiet).keyboardShortcut(.cancelAction)
             if creating { ProgressView().controlSize(.small) }
             Button("Create draft") { create(plan: false) }.buttonStyle(.adverbQuiet).disabled(!valid || creating)
             Button("Create and plan") { create(plan: true) }.buttonStyle(.adverbGold).keyboardShortcut(.defaultAction).disabled(!valid || creating)
@@ -96,11 +106,54 @@ struct NewCampaignSheet: View {
                 let f = DateFormatter(); f.dateFormat = "MMMM"
                 name = f.string(from: start)
             }
+            let s = root.settings
+            voiceOn = s.voiceOverDefault
+            voice = s.voiceSelection
+            voiceModel = s.voiceModel
+            hasVoiceKey = root.hasVoiceKey
+        }
+        .onChange(of: voiceModel) { _, model in voice?.modelID = model }
+    }
+
+    /// Voice-over: on or off, the key when there is none, the voice (heard before it is chosen).
+    @ViewBuilder private var voiceRow: some View {
+        FormRow(label: "Voice-over", hint: "Claude writes a short narration for each asset and an ElevenLabs voice speaks it over both videos. Other languages come after you confirm a day's English.") {
+            Toggle("Narrate every asset with an ElevenLabs voice", isOn: $voiceOn).adverbType(.label)
+            if voiceOn {
+                if !hasVoiceKey {
+                    VoiceKeyField(draft: $voiceKeyDraft) { hasVoiceKey = root.hasVoiceKey }
+                } else {
+                    HStack(spacing: .layer2) {
+                        if let voice {
+                            Image(systemName: "waveform").font(.adverbGlyph(AdverbGlyph.body)).foregroundStyle(Color.adverbGold)
+                            VStack(alignment: .leading, spacing: .hairline) {
+                                Text(voice.voiceName).adverbType(.labelStrong)
+                                Text(AdverbSettings.voiceModels.first { $0.id == voice.modelID }?.title ?? voice.modelID)
+                                    .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
+                            }
+                            Button("Hear it") { Task { await root.previewVoice(voice.voiceID) } }.buttonStyle(.adverbLink)
+                        } else {
+                            Text("Choose a voice below.").adverbType(.caption).foregroundStyle(Color.adverbInkDim)
+                        }
+                        Spacer()
+                        if voice != nil { Button(pickingVoice ? "Done" : "Change…") { pickingVoice.toggle() }.buttonStyle(.adverbLink) }
+                    }
+                    if pickingVoice || voice == nil {
+                        Picker("Model", selection: $voiceModel) { ForEach(AdverbSettings.voiceModels, id: \.id) { Text($0.title).tag($0.id) } }
+                            .adverbType(.label)
+                        VoicePicker(selectedID: voice?.voiceID, height: AdverbLayout.voiceList.compact) { v in
+                            voice = VoiceSelection(voiceID: v.id, voiceName: v.name, modelID: voiceModel)
+                            pickingVoice = false
+                        }
+                    }
+                }
+            }
         }
     }
 
     private var valid: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty && !platforms.isEmpty && !postDays.isEmpty && !durations.isEmpty && !brief.postDates.isEmpty
+            && (!voiceOn || (hasVoiceKey && voice != nil))
     }
 
     private func toggle<T: Hashable>(_ set: inout Set<T>, _ value: T) {
@@ -110,6 +163,13 @@ struct NewCampaignSheet: View {
     private func create(plan: Bool) {
         creating = true
         let brief = self.brief
+        root.stopPreview()
+        // The choice is the next campaign's default.
+        let on = voiceOn, chosen = voice
+        root.update { s in
+            s.voiceOverDefault = on
+            if let chosen { s.voiceID = chosen.voiceID; s.voiceName = chosen.voiceName; s.voiceModel = chosen.modelID }
+        }
         Task {
             if let campaign = await AdverbRuntimeRoot.shared.createCampaign(slug, name: name.trimmingCharacters(in: .whitespaces), brief: brief, planNow: plan) {
                 selection.select(campaign: campaign.id, in: slug)

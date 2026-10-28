@@ -147,4 +147,30 @@ import Testing
         let md = Exports.captionsMarkdown(campaign, project: project, paths: CampaignPaths(root: URL(fileURLWithPath: "/x")))
         #expect(md.contains("## Sunday 2026-11-01, 09:30"))
     }
+
+    @Test func exportsListTheLanguages() {
+        var campaign = Campaign(projectID: UUID(), name: "November", brief: sampleBrief(days: 1))
+        campaign.days = PlanValidator.days(samplePlan(dates: campaign.brief.postDates), brief: campaign.brief)
+        var asset = Asset(folder: "assets/01-a", duration: 15, pagePath: "assets/01-a/page.html",
+                          renders: [Render(orientation: .portrait, path: "assets/01-a/01-a-portrait.mp4", seconds: 15)])
+        let line = NarrationLine(index: 0, text: "Hola.", at: 0.3, until: 3, spokenStart: 0, spokenEnd: 1, clipPath: "c.mp3")
+        var vo = VoiceOver(selection: VoiceSelection(voiceID: "v", voiceName: "Rachel"),
+                           english: VoiceTrack(language: .english, scriptPath: "s", lines: [line]), confirmedAt: Date())
+        vo.upsert(VoiceTrack(language: .spanish, scriptPath: "es", lines: [line],
+                             renders: [Render(orientation: .portrait, path: "assets/01-a/01-a-portrait.es.mp4", seconds: 15)],
+                             captions: ["portrait": CaptionFiles(vtt: "assets/01-a/01-a-portrait.es.vtt", srt: "assets/01-a/01-a-portrait.es.srt", cueCount: 1, coverage: 1)],
+                             transcriptPath: "assets/01-a/01-a.es.transcript.md"))
+        vo.upsert(VoiceTrack(language: .german, scriptPath: "de", lines: [line], stale: true))
+        asset.voiceOver = vo
+        campaign.days[0].asset = asset
+        let csv = Exports.csv(campaign)
+        #expect(csv.components(separatedBy: "\r\n")[0].hasSuffix(",voice,voice_languages"))
+        #expect(csv.components(separatedBy: "\r\n")[1].hasSuffix(",Rachel,es"))
+        let md = Exports.captionsMarkdown(campaign, project: Project(slug: "a", name: "Ambient", contextPath: "/tmp", app: .ambient),
+                                          paths: CampaignPaths(root: URL(fileURLWithPath: "/x")))
+        #expect(md.contains("- Voice-over: Rachel\n"))
+        #expect(md.contains("- Spanish, Instagram Reels: `assets/01-a/01-a-portrait.es.mp4`"))
+        #expect(md.contains("- Spanish transcript: `assets/01-a/01-a.es.transcript.md`"))
+        #expect(!md.contains("German"))
+    }
 }

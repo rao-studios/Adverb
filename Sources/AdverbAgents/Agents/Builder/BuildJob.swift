@@ -5,9 +5,12 @@
 //  WHAT: Builds one day's asset: the page (Claude, with the skill, the frozen digest and the
 //        day's plan), checked statically and in the renderer (one round of fixes), stills,
 //        Claude's review of the stills (one round), then both renders, captions, descriptions,
-//        transcript, checks and the contact sheet; the asset written to the day.
+//        transcript, checks and the contact sheet; the asset written to the day. A narrated
+//        campaign's day also gets its voice-over (Claude's lines, ElevenLabs' voice) before the
+//        stills, mixed in as it renders.
 //  PIN:  A day that fails says why on the day itself (`problem`), and the run fails with it; the
-//        other days are untouched.
+//        other days are untouched. A voice-over that fails does not fail the day: it finishes
+//        silent, says why, and the voice can be added from the day without a rebuild.
 //
 
 import AdverbCore
@@ -50,6 +53,29 @@ public enum BuildJob {
             }
             try AtomicFile.write(html, to: a.page)
 
+            // 1b. The voice-over, when the campaign is narrated.
+            var narration: NarrationInput?
+            var voiceProblem: String?
+            if let selection = campaign.brief.voiceOver {
+                if let client = compute.voice {
+                    do {
+                        // A rebuild replaces the day's voice-over: the old languages' files go.
+                        for track in day.asset?.voiceOver?.languages ?? [] { VoiceFinisher.removeFiles(of: track.language, assetPaths: a) }
+                        let lines = try await VoiceJob.script(day: day, html: html, project: project, paths: paths, compute: compute, log: log, emit: emit)
+                        let recorded = try await VoiceJob.record(lines, language: .english, selection: selection, existing: VoiceJob.existingLines(a, .english),
+                                                                 assetPaths: a, paths: paths, client: client, compute: compute, log: log, emit: emit)
+                        narration = NarrationInput(voice: selection, lines: recorded, scriptPath: paths.relative(a.script(.english)))
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        voiceProblem = "Voice-over skipped: \(error)"
+                    }
+                } else {
+                    voiceProblem = "Voice-over skipped: there is no ElevenLabs key. Add one in Settings › Voice, then add the voice from this day."
+                }
+                if let voiceProblem { log.line(voiceProblem); emit(.problem(voiceProblem)) }
+            }
+
             var input = FinishInput(paths: paths, assetPaths: a, readAccess: readAccess, day: day, html: html,
                                     notes: AssetNotes(summary: page.notes.summary, illustrative: page.notes.illustrative,
                                                       softened: page.notes.softened, sources: page.notes.sources),
@@ -59,6 +85,7 @@ public enum BuildJob {
                                     previous: nil, runID: log.id)
             input.renderer = compute.settings.renderer
             input.kit = kit
+            input.narration = narration
 
             // 2. Stills, and Claude's look at them.
             emit(.step("Stills"))
@@ -83,6 +110,9 @@ public enum BuildJob {
                     let revised = PageVerifier.rewriteKitPaths(review.html, pageFolder: a.folder, kitFolder: kit)
                     let revisedProblems = try await check(revised, at: a, readAccess: readAccess, duration: day.topic.duration)
                     if revisedProblems.isEmpty {
+                        if narration != nil, PageVerifier.scenes(revised) != PageVerifier.scenes(html) {
+                            log.line("the review moved window.SCENES; the voice-over keeps the first page's timing")
+                        }
                         html = revised
                         try AtomicFile.write(html, to: a.page)
                         input.html = html
@@ -109,9 +139,10 @@ public enum BuildJob {
             for check in asset.a11y.checks { log.line("a11y \(check.level.rawValue): \(check.message)") }
 
             let built = asset
+            let dayProblem = voiceProblem
             try await CampaignLedger.shared.updateDay(paths, index: dayIndex) { d in
                 d.asset = built
-                d.problem = nil
+                d.problem = dayProblem
                 if d.status == .planned { d.status = .rendered }
             }
             emit(.dayDone(dayIndex))

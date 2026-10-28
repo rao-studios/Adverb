@@ -30,10 +30,17 @@ public final class AdverbRuntimeRoot {
     @Relay(.silence) public var campaigns: CampaignService
     @Relay(.silence) public var generation: GenerationService
     @Relay(.silence) public var music: MusicService
+    @Relay(.silence) public var voice: VoiceService
 
     /// The key, once read, so a run's compute resolves without a process.
     var apiKey: Secret?
     var keyStore: KeyStore = KeychainKeyStore()
+    /// The ElevenLabs key, once read. Optional: without it campaigns stay silent.
+    var voiceKey: Secret?
+    var voiceKeyStore: KeyStore = KeychainKeyStore(account: KeychainKeyStore.elevenLabsAccount)
+    /// The voice preview playing, and the task that marks it done.
+    var previewingVoice: String?
+    var previewTask: Task<Void, Never>?
     var observers: [NSObjectProtocol] = []
     var booted = false
     /// The root's own copy of what it last wrote. PIN: a service's state is updated by its reducer
@@ -59,6 +66,7 @@ public final class AdverbRuntimeRoot {
         attachAgents()
         watchVolumes()
         await reloadKey()
+        await reloadVoiceKey()
         await refresh()
         if let folder = settings.musicFolder { Task { await self.scanMusic(URL(fileURLWithPath: folder, isDirectory: true)) } }
     }
@@ -178,7 +186,8 @@ public final class AdverbRuntimeRoot {
         guard VolumeGate.isUsable(workspace.gate) else { throw WorkspaceError.unavailable(workspace.gate) }
         let s = settings
         let client = ClaudeClient(config: ClaudeConfig(apiKey: apiKey, model: s.model, effort: s.effort, fallbacks: s.fallbacks))
-        return AdverbCompute(client: client, prompts: try PromptLibrary.load(skillPath: s.skillPath), workspace: workspace, settings: s)
+        return AdverbCompute(client: client, prompts: try PromptLibrary.load(skillPath: s.skillPath), workspace: workspace, settings: s,
+                             voice: voiceClient)
     }
 
     func attachAgents() {
@@ -186,5 +195,6 @@ public final class AdverbRuntimeRoot {
         generation.center.$planner.attach { try await resolve($0) }
         generation.center.$builder.attach { try await resolve($0) }
         generation.center.$retimer.attach { try await resolve($0) }
+        generation.center.$voicer.attach { try await resolve($0) }
     }
 }

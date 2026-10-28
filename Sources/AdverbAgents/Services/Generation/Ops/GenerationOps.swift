@@ -28,6 +28,7 @@ public enum GenerationOps {
         case .activity(let text):
             run.activity = String((run.activity + text).suffix(600))
         case .usage(let u): run.usage = u
+        case .voiceUsage(let v): run.voice = v
         case .log(let line): run.log.append(line)
         case .planned(let count):
             run.log.append("Planned \(count) days")

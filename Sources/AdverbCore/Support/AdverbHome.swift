@@ -29,4 +29,7 @@ public enum AdverbHome {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("nyc.rao.adverb", isDirectory: true)
     }
+
+    /// ElevenLabs' voice list and each voice's preview: fetched once, re-fetched when missing.
+    public static var voices: URL { caches.appendingPathComponent("voices", isDirectory: true) }
 }

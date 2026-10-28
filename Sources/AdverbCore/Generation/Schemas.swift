@@ -3,7 +3,7 @@
 //  AdverbCore
 //
 //  WHAT: The JSON schemas Claude's answers are held to (structured outputs): the month's plan, an
-//        asset's page, a stills review, a re-timing.
+//        asset's page, a stills review, a re-timing, a narration (written or translated).
 //  PIN:  Structured outputs want `additionalProperties: false` and every key `required` on every
 //        object, and take no length or count limits: those are checked after (PlanValidator).
 //
@@ -68,5 +68,10 @@ public enum Schemas {
 
     public static var retime: JSONValue {
         object(["html": string, "cues": array(object(["t": number, "kind": string]))])
+    }
+
+    /// A voice-over: timed lines in page time. The same shape for a translation.
+    public static var narration: JSONValue {
+        object(["lines": array(object(["at": number, "until": number, "text": string]))])
     }
 }

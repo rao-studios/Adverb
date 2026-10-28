@@ -276,10 +276,28 @@ struct FilesCard: View {
                         Button("Reveal") { Panels.reveal([paths.url(r.path)]) }.buttonStyle(.adverbLink)
                     }
                 }
+                ForEach(asset.voiceOver?.languages.filter(\.isFresh) ?? [], id: \.language) { track in
+                    ForEach(track.renders, id: \.orientation) { r in
+                        HStack {
+                            Text(URL(fileURLWithPath: r.path).lastPathComponent).adverbType(.identifier).lineLimit(1).truncationMode(.middle)
+                            Spacer()
+                            Button("Reveal") { Panels.reveal([paths.url(r.path)]) }.buttonStyle(.adverbLink)
+                        }
+                    }
+                    HStack(spacing: .layer3) {
+                        Button("\(track.language.title) captions") {
+                            Panels.reveal(track.captions.values.flatMap { [paths.url($0.vtt), paths.url($0.srt)] })
+                        }.buttonStyle(.adverbLink)
+                        if let transcript = track.transcriptPath {
+                            Button("\(track.language.title) transcript") { NSWorkspace.shared.open(paths.url(transcript)) }.buttonStyle(.adverbLink)
+                        }
+                    }
+                }
                 HStack(spacing: .layer3) {
                     if let sheet = asset.sheetPath { Button("Contact sheet") { NSWorkspace.shared.open(paths.url(sheet)) }.buttonStyle(.adverbLink) }
                     Button("Page") { Panels.reveal([paths.url(asset.pagePath)]) }.buttonStyle(.adverbLink)
                     Button("Folder") { Panels.reveal([paths.url(asset.folder)]) }.buttonStyle(.adverbLink)
+                    if let script = asset.voiceOver?.english.scriptPath { Button("Voice script") { Panels.reveal([paths.url(script)]) }.buttonStyle(.adverbLink) }
                 }
             }
         }

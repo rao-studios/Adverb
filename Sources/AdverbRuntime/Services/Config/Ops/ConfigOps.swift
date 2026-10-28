@@ -11,6 +11,10 @@ public enum ConfigOps {
         case .settings(let s): state.settings = s
         case .key(let source, let masked): state.keySource = source; state.keyMasked = masked; state.keyChecked = nil
         case .keyChecked(let ok): state.keyChecked = ok
+        case .voiceKey(let source, let masked):
+            state.voiceKeySource = source; state.voiceKeyMasked = masked; state.voiceKeyChecked = nil; state.voiceQuota = nil
+        case .voiceKeyChecked(let ok): state.voiceKeyChecked = ok
+        case .voiceQuota(let quota): state.voiceQuota = quota
         case .gate(let gate): state.gate = gate
         case .toolchain(let checks): state.toolchain = checks
         case .notice(let text): state.notice = text; if text != nil { state.problem = nil }

@@ -33,6 +33,9 @@ extension GenerationService {
         @Agent(.parallel(max: 2)) public var builder: Builder.Agent
         /// A day re-cut to a song.
         @Agent public var retimer: Retimer.Agent
+        /// A day's voice-over, English or more languages. One per day (a second ask replaces the
+        /// first); two days at a time, the rest wait their turn.
+        @Agent(.parallel(max: 2)) public var voicer: Voicer.Agent
 
         @Store public var state: State
     }

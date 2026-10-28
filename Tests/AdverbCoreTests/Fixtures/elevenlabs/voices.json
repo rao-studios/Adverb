@@ -1,0 +1,47 @@
+{
+ "voices": [
+  {
+   "voice_id": "21m00Tcm4TlvDq8ikWAM",
+   "name": "Rachel",
+   "category": "premade",
+   "description": "Calm, young narrator",
+   "labels": {
+    "accent": "american",
+    "gender": "female",
+    "age": "young",
+    "use_case": "narration"
+   },
+   "preview_url": "https://storage.googleapis.com/eleven-public-prod/premade/voices/21m00Tcm4TlvDq8ikWAM/preview.mp3",
+   "verified_languages": [
+    {
+     "language": "en",
+     "model_id": "eleven_multilingual_v2",
+     "accent": "american",
+     "locale": "en-US",
+     "preview_url": null
+    }
+   ],
+   "high_quality_base_model_ids": [
+    "eleven_multilingual_v2"
+   ],
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75,
+    "style": 0,
+    "use_speaker_boost": true,
+    "speed": 1.0
+   }
+  },
+  {
+   "name": "No id, skipped"
+  },
+  {
+   "voice_id": "pNInz6obpgDQGcFmaJgB",
+   "name": "Adam",
+   "labels": null,
+   "preview_url": null
+  }
+ ],
+ "has_more": false,
+ "next_page_token": null
+}

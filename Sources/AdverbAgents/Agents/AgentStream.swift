@@ -31,6 +31,7 @@ enum AgentStream {
         case (.activity(let x), .activity(let y)): .activity(x + y)
         case (.progress, .progress(let y)): .progress(y)
         case (.usage, .usage(let y)): .usage(y)
+        case (.voiceUsage, .voiceUsage(let y)): .voiceUsage(y)
         default: nil
         }
     }

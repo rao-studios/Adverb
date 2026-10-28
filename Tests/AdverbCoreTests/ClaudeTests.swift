@@ -76,7 +76,7 @@ import Testing
             v["properties"]?.objectValue?.values.forEach(check)
             if let items = v["items"] { check(items) }
         }
-        [Schemas.plan, Schemas.page, Schemas.review, Schemas.retime].forEach(check)
+        [Schemas.plan, Schemas.page, Schemas.review, Schemas.retime, Schemas.narration].forEach(check)
     }
 
     @Test func haikuGetsNoFallbacks() {

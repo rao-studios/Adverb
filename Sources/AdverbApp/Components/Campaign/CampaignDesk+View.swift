@@ -38,7 +38,7 @@ extension CampaignDesk {
                         if let index = selection.dayIndex, let day = campaign.day(index) {
                             Rectangle().fill(Color.adverbBorder).frame(width: 1)
                             DayPane(project: project, campaign: campaign, day: day,
-                                    run: generation.state.runs[RunKey.build(campaign.id, index)] ?? generation.state.runs[RunKey.beat(campaign.id, index)],
+                                    run: generation.state.dayRun(campaign.id, index),
                                     selection: selection)
                                 .frame(width: AdverbLayout.dayPane)
                                 .id("\(campaign.id)-\(index)")

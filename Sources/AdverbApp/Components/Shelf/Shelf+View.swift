@@ -29,6 +29,18 @@ extension Shelf {
                 .padding(.horizontal, .layer3)
                 .padding(.bottom, .layer4)
             }
+            Rectangle().fill(Color.adverbBorder).frame(height: 1)
+            Button { SettingsWindowController.show() } label: {
+                Label("Settings", systemImage: "gearshape")
+                    .adverbType(.label)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.adverbInkSoft)
+            .help("Settings (⌘,): the keys, the working directory, the voice and the renderer")
+            .padding(.horizontal, .layer4)
+            .padding(.vertical, .layer3)
         }
         .onReceive(changed) { _ in tick &+= 1 }
     }

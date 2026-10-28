@@ -21,7 +21,7 @@ public final class RunLog: @unchecked Sendable {
         let suffix: String
         switch kind {
         case .build(let days) where days.count == 1: suffix = "-day\(days[0])"
-        case .beatmap(let day): suffix = "-day\(day)"
+        case .beatmap(let day), .voice(let day), .languages(let day, _): suffix = "-day\(day)"
         default: suffix = ""
         }
         url = paths.logs.appendingPathComponent("\(stamp)-\(kind.slug)\(suffix).log")
@@ -53,6 +53,10 @@ public final class RunLog: @unchecked Sendable {
 
     public var usage: TokenUsage { lock.withLock { run.usage } }
 
+    public func add(voice usage: VoiceUsage) { lock.withLock { run.voice = (run.voice ?? VoiceUsage(modelID: usage.modelID)) + usage } }
+
+    public var voice: VoiceUsage? { lock.withLock { run.voice } }
+
     public func finish(_ outcome: RunOutcome) {
         let record: GenerationRun = lock.withLock {
             if let last = run.steps.indices.last, run.steps[last].finishedAt == nil { run.steps[last].finishedAt = Date() }
@@ -67,6 +71,7 @@ public final class RunLog: @unchecked Sendable {
         }
         let u = record.usage
         line("tokens: \(u.input) in, \(u.output) out, \(u.cacheRead) from cache, \(u.cacheWrite) cached · ≈ $\(String(format: "%.2f", u.estimatedUSD(model: record.model)))")
+        if let v = record.voice, !v.isEmpty { line("voice: \(v.line)") }
         try? JSONCoding.write(record, to: jsonURL)
         lock.withLock { try? handle?.close(); handle = nil }
     }

@@ -4,7 +4,7 @@
 //
 //  WHAT: A built asset: its page, its two renders (and the silent originals once music replaced
 //        them), stills, the contact sheet, what Claude said about accuracy, the accessibility files,
-//        and the music, when there is some.
+//        the music, when there is some, and the voice-over with its languages.
 //  PIN:  Paths are relative to the campaign folder, so a campaign folder moved with its drive
 //        still opens.
 //
@@ -27,16 +27,22 @@ public struct Asset: Codable, Sendable, Equatable, Hashable {
     /// The silent version's accessibility, kept beside `originals` for a revert.
     public var originalA11y: A11y?
     public var music: MusicChoice?
+    /// The narration and its language tracks, when the asset is narrated.
+    public var voiceOver: VoiceOver?
+    /// Original page time → video time, kept when a re-cut moved the scenes, so a language track
+    /// made later places its clips where the English ones landed.
+    public var warp: TimeWarp?
     public var reviewed: Bool
     public var builtAt: Date
     public var buildRunID: UUID?
 
     public init(folder: String, duration: Int, pagePath: String, renders: [Render] = [], originals: [Render] = [],
                 stills: [Still] = [], sheetPath: String? = nil, notes: AssetNotes = .init(), a11y: A11y = .init(),
-                music: MusicChoice? = nil, reviewed: Bool = false, builtAt: Date = Date(), buildRunID: UUID? = nil) {
+                music: MusicChoice? = nil, voiceOver: VoiceOver? = nil, warp: TimeWarp? = nil, reviewed: Bool = false,
+                builtAt: Date = Date(), buildRunID: UUID? = nil) {
         self.folder = folder; self.duration = duration; self.pagePath = pagePath; self.renders = renders
         self.originals = originals; self.stills = stills; self.sheetPath = sheetPath; self.notes = notes
-        self.a11y = a11y; self.originalA11y = nil; self.music = music; self.reviewed = reviewed; self.builtAt = builtAt; self.buildRunID = buildRunID
+        self.a11y = a11y; self.originalA11y = nil; self.music = music; self.voiceOver = voiceOver; self.warp = warp; self.reviewed = reviewed; self.builtAt = builtAt; self.buildRunID = buildRunID
     }
 
     public func render(_ orientation: Orientation) -> Render? { renders.first { $0.orientation == orientation } }

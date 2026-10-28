@@ -3,8 +3,9 @@
 //  AdverbAgents
 //
 //  WHAT: What an agent's run computes with, resolved by the composition root when a run starts
-//        (`$agent.attach`): the Claude client with the person's key and model, the prompts, the
-//        workspace on the drive, and the settings of the moment.
+//        (`$agent.attach`): the Claude client with the person's key and model, the ElevenLabs
+//        client when there is a key for it, the prompts, the workspace on the drive, and the
+//        settings of the moment.
 //
 
 import AdverbCore
@@ -15,9 +16,11 @@ public struct AdverbCompute: Sendable {
     public let prompts: PromptLibrary
     public let workspace: Workspace
     public let settings: AdverbSettings
+    /// Nil without an ElevenLabs key: a narrated build then finishes silent and says why.
+    public let voice: ElevenLabsClient?
 
-    public init(client: ClaudeClient, prompts: PromptLibrary, workspace: Workspace, settings: AdverbSettings) {
-        self.client = client; self.prompts = prompts; self.workspace = workspace; self.settings = settings
+    public init(client: ClaudeClient, prompts: PromptLibrary, workspace: Workspace, settings: AdverbSettings, voice: ElevenLabsClient? = nil) {
+        self.client = client; self.prompts = prompts; self.workspace = workspace; self.settings = settings; self.voice = voice
     }
 
     public func project(_ slug: String) throws -> Project {

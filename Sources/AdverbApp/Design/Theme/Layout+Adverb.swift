@@ -58,6 +58,12 @@ enum AdverbLayout {
     /// The day pane beside the calendar.
     static let dayPane: CGFloat = 420
     static let calendarCellHeight: CGFloat = 118
+    /// A list of voices: in the new campaign sheet, on the Voice page, in the voice sheet.
+    static let voiceList: (compact: CGFloat, regular: CGFloat, tall: CGFloat) = (220, 260, 340)
+    /// A day's narration lines, scrolling in the day pane.
+    static let voiceLines: CGFloat = 180
+    /// The time column of a list of timed lines.
+    static let timeColumn: CGFloat = 44
     static let sheetWidth: CGFloat = 560
     static let onboardingWidth: CGFloat = 560
     static let screenMargin = CGSize(width: 80, height: 60)

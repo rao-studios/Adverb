@@ -104,6 +104,61 @@ public struct PromptLibrary: Sendable, Equatable {
         return [.user(blocks)]
     }
 
+    // MARK: Voice-over
+
+    /// The narration for a built page: timed to its real scenes, written to be heard.
+    public func narrate(digest: String, day: CampaignDay, scenes: [Double], duration: Int, project: Project) -> [ClaudeMessageParam] {
+        let endAt = Double(duration) - 1.6
+        let starts = scenes.isEmpty ? [0, endAt] : scenes
+        var lines: [String] = []
+        lines.append("Write the voice-over for the asset you built for \(day.date) (\(duration) s): \(day.topic.title).")
+        lines.append("")
+        lines.append("Kicker: \(day.topic.kicker)")
+        lines.append("Headline: \(day.topic.headline)")
+        lines.append("Hook: \(day.hook)")
+        if !day.cta.isEmpty { lines.append("Call to action: \(day.cta)") }
+        lines.append("What each scene shows:")
+        for s in day.topic.scenes { lines.append(String(format: "- %.1f–%.1f s · %@", s.at, s.until, s.what)) }
+        lines.append("The page's window.SCENES (the real scene starts, page time): \(starts.map { String(format: "%.2f", $0) }.joined(separator: ", ")).")
+        lines.append(String(format: "window.DUR=%d; the end card starts at endAt %.1f.", duration, endAt))
+        lines.append("")
+        lines.append("Name: \(project.app.name). End card: \(project.app.endTitle) · \(project.app.endSub).")
+        if project.app.comingSoon { lines.append("\(project.app.name) is coming soon: say so, never as shipping.") }
+        lines.append(String(format: "Pace: about %.1f words a second, with %.1f s to spare in every line's window. Return the lines in order.", NarrationPacing.wordsPerSecond, NarrationPacing.headroom))
+        return [.user([digestBlock(digest), .text(lines.joined(separator: "\n"))])]
+    }
+
+    public func narrateFix(previous: [ClaudeMessageParam], answer: String, problems: [String]) -> [ClaudeMessageParam] {
+        previous + [.assistant([.text(answer)]),
+                    .user("The voice-over has problems. Fix them and return every line again:\n" + problems.map { "- \($0)" }.joined(separator: "\n"))]
+    }
+
+    /// Lines that ran past their window when spoken, sent back to be shortened.
+    public func narrateShorten(lines: [NarrationLine], long: [(index: Int, spoken: Double, window: Double)], language: Language) -> [ClaudeMessageParam] {
+        var out: [String] = []
+        out.append("These \(language == .english ? "" : language.title + " ")voice-over lines run long when spoken. Shorten the marked ones: same meaning, fewer words, in \(language.title). Keep every other line exactly, and every `at` and `until`. Return all \(lines.count) lines.")
+        out.append("")
+        let marks = Dictionary(long.map { ($0.index, $0) }, uniquingKeysWith: { a, _ in a })
+        for line in lines {
+            if let m = marks[line.index] {
+                out.append(String(format: "- [%d] %.2f–%.2f s · SHORTEN (spoken %.1f s, window %.1f s): %@", line.index, line.at, line.until, m.spoken, m.window, line.text))
+            } else {
+                out.append(String(format: "- [%d] %.2f–%.2f s · keep: %@", line.index, line.at, line.until, line.text))
+            }
+        }
+        return [.user(out.joined(separator: "\n"))]
+    }
+
+    /// The English narration in another language, line for line, in the same windows.
+    public func translate(digest: String, lines: [NarrationLine], language: Language, day: CampaignDay, project: Project) -> [ClaudeMessageParam] {
+        var out: [String] = []
+        out.append("Translate this voice-over into \(language.title) (\(language.nativeTitle), \(language.code)) for \(day.date): \(day.topic.title).")
+        out.append("Keep each line in its window (same `at` and `until`, same number of lines, same order), natural for a native speaker, and no longer when spoken than the English. Keep \(project.app.name), other product names and URLs as they are.")
+        out.append("")
+        for line in lines { out.append(String(format: "- %.2f–%.2f s: %@", line.at, line.until, line.text)) }
+        return [.user([digestBlock(digest), .text(out.joined(separator: "\n"))])]
+    }
+
     // MARK: Retime
 
     public func retime(html: String, grid: BeatGrid, song: String) -> [ClaudeMessageParam] {

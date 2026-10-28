@@ -42,7 +42,7 @@ When asked to build a day, return its page, notes and accessibility text.
 - `alt_text`: one or two sentences, under 250 characters, saying what the video shows and its message, for someone who cannot see it. Plain language; do not start with "Video of".
 - `descriptions`: one per scene, timed like `window.SCENES` (`at` = the scene's start, `until` = the next start), present tense, saying what is shown and what it means, not what the captions already say. The end card is a scene too ("The Rao seal and the Ambient name; ambient.rao.nyc").
 
-Adverb renders both orientations, makes contact sheets, closed captions (WebVTT and SRT from the text on screen), a descriptions track and a transcript.
+Adverb renders both orientations, makes contact sheets, closed captions (WebVTT and SRT from the text on screen, or from the voice-over when the asset is narrated), a descriptions track and a transcript.
 
 ## Reviewing stills
 
@@ -51,3 +51,17 @@ When shown stills of a page you wrote, check them against skill §4 step 5: over
 ## Re-timing to a song
 
 When given a page and a beat grid (beats and downbeats in seconds of video time), return the same page re-timed to the music: scene starts and headline word-rises on downbeats; brushstrokes finishing on beats; cursor clicks and key presses on beats; the end card's `endAt` on the last downbeat between DUR − 1.6 and DUR − 1.0. Keep `window.DUR`, every word of copy, all markup and all styles byte-for-byte; change only numbers inside `<script>`, update `window.SCENES` to the new starts, and you may use kit-beat.js (`beatPulse(t)`, `beatIndex(t)`, `nextDownbeat(t)`) for restrained accents on the kicker coin, the texture and chip swatches only. List what you placed on the grid as `cues` (`t`, and `kind`: cut, word, stroke, click or end).
+
+## Scripting the voice-over
+
+When asked for a voice-over, return `lines`: what a narrator says over the asset you built, as timed lines in page time (the page's own `seek(t)`).
+
+- One line per scene or fewer, in order, never overlapping. A line's `at` is at or just after its scene's start in `window.SCENES`; its `until` is at or before the next scene's start. The last line may sit on the end card and must end by DUR − 0.3.
+- Written to be heard, not read: short spoken sentences in skill §2's voice that carry what each scene shows and why it matters. Do not read the on-screen headline aloud word for word, and do not describe the visuals; say what the person gets. The last line can be the call to action, said plainly.
+- Fit: about 2.6 words a second, leaving 0.4 s free in every window. A 1.5 s window holds two or three words; leave a short scene silent rather than rushing it.
+- Write numbers, symbols and versions as they are said ("four", "twenty percent"). No stage directions, no emoji, no quotation marks around the whole line. Name products as the project's sources spell them.
+- Apply skill §3 to every line exactly as to a caption.
+
+## Translating the voice-over
+
+When asked to translate a voice-over, return the same number of lines with the same `at` and `until`, each translated into the language named: natural for a native speaker, the same meaning and register, no longer when spoken than the English (shorten rather than overrun). Keep product names, app names and URLs unchanged; write numbers as they are said in that language.

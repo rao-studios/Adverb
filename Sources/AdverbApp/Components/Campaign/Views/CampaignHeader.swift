@@ -2,8 +2,8 @@
 //  CampaignHeader.swift
 //  Adverb
 //
-//  WHAT: The campaign's bar: its name and window, its state (draft → live → archived), and plan,
-//        build, export, reveal.
+//  WHAT: The campaign's bar: its name and window, its state (draft → live → archived), whether it
+//        is narrated (and the built days still silent, to narrate), and plan, build, export, reveal.
 //
 
 import AdverbCore
@@ -23,6 +23,19 @@ struct CampaignHeader: View {
     var body: some View {
         WindowHeader(kicker: "\(project.name) · \(window)", title: campaign.name) {
             AdverbBadge(text: campaign.state.title, color: campaign.state == .live ? .adverbGold : .adverbInkDim, filled: campaign.state == .live)
+            if let voice = campaign.brief.voiceOver {
+                Button { selection.sheet = .campaignVoice(slug: project.slug, campaign: campaign.id) } label: {
+                    AdverbBadge(text: "Voice · \(voice.voiceName)", color: .adverbGold)
+                }
+                .buttonStyle(.plain)
+                .help("Every build is narrated by \(voice.voiceName). Click to change or turn it off.")
+                let silent = campaign.silentBuiltDays.count
+                if silent > 0 {
+                    Button("Voice \(silent) built \(silent == 1 ? "day" : "days")") { root.voiceBuiltDays(project.slug, campaign) }
+                        .buttonStyle(.adverbQuiet).disabled(busy)
+                        .help("These days were built before the campaign was narrated: give them \(voice.voiceName)'s voice without rebuilding them")
+                }
+            }
             if busy {
                 Button("Stop") { root.cancelRuns(campaign.id) }.buttonStyle(.adverbQuiet).help("Stop the runs working on this campaign")
             }
@@ -43,11 +56,20 @@ struct CampaignHeader: View {
                 if campaign.isPlanned {
                     Button("Re-plan the month…") { root.plan(project.slug, campaign.id) }
                     Button("Rebuild every day") { root.buildAll(project.slug, campaign.id, onlyMissing: false) }
+                    let confirmed = campaign.days.filter { $0.asset?.voiceOver?.isConfirmed == true }.count
+                    if confirmed > 0 {
+                        Button("Voice \(confirmed) confirmed \(confirmed == 1 ? "day" : "days") in your languages") { root.voiceAllConfirmed(project.slug, campaign.id) }
+                            .disabled(root.settings.voiceLanguages.isEmpty)
+                    }
                     Divider()
                     Button("Export captions, CSV and calendar") {
                         Task { let urls = await root.export(project.slug, campaign.id); if !urls.isEmpty { Panels.reveal(urls) } }
                     }
                 }
+                Button(campaign.isNarrated ? "Voice-over…" : "Turn on voice-over…") {
+                    selection.sheet = .campaignVoice(slug: project.slug, campaign: campaign.id)
+                }
+                Divider()
                 Button("Reveal in Finder") { if let p = root.paths(project.slug, campaign.id) { Panels.reveal([p.campaignFile]) } }
                 Button("Open the run logs") { if let p = root.paths(project.slug, campaign.id) { Panels.reveal([p.logs]) } }
                 Button(selection.showRuns ? "Hide runs" : "Show runs") { selection.showRuns.toggle() }

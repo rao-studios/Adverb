@@ -41,6 +41,8 @@ enum SnapshotProbe {
                 case "new-campaign": if let slug = s.projectSlug { s.sheet = .newCampaign(slug) }
                 case "manage": if let slug = s.projectSlug { s.sheet = .manageProject(slug) }
                 case "music": if let slug = s.projectSlug, let c = s.campaignID, let d = s.dayIndex { s.sheet = .music(slug: slug, campaign: c, day: d) }
+                case "campaign-voice": if let slug = s.projectSlug, let c = s.campaignID { s.sheet = .campaignVoice(slug: slug, campaign: c) }
+                case "voice": if let slug = s.projectSlug, let c = s.campaignID, let d = s.dayIndex { s.sheet = .voice(slug: slug, campaign: c, day: d) }
                 default: break
                 }
             }

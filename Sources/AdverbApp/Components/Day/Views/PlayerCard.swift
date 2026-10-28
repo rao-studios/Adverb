@@ -2,8 +2,8 @@
 //  PlayerCard.swift
 //  Adverb
 //
-//  WHAT: The asset playing, in the orientation chosen, with its closed captions drawn from its own
-//        WebVTT file, and its render's report underneath.
+//  WHAT: The asset playing, in the orientation and language chosen, with its closed captions drawn
+//        from its own WebVTT file, and its render's report underneath.
 //
 
 import AVKit
@@ -20,6 +20,16 @@ struct PlayerCard: View {
     @State private var showPoster = true
 
     var orientation: Orientation { Orientation(rawValue: selection.orientation) ?? .portrait }
+    /// The languages made for this asset, besides English.
+    var tracks: [Language] { asset.voiceOver?.freshLanguages ?? [] }
+    /// The language chosen, when this asset has it; else English.
+    var language: Language {
+        Language(rawValue: selection.language).flatMap { tracks.contains($0) ? $0 : nil } ?? .english
+    }
+    /// The render playing: the language's, or the asset's own.
+    var render: Render? {
+        language == .english ? asset.render(orientation) : asset.voiceOver?.track(language)?.render(orientation)
+    }
 
     var body: some View {
         AdverbCard(padding: .layer3) {
@@ -30,8 +40,16 @@ struct PlayerCard: View {
                         Text("Landscape").tag(Orientation.landscape.rawValue)
                     }
                     .pickerStyle(.segmented).labelsHidden().fixedSize()
+                    if !tracks.isEmpty {
+                        Picker("", selection: Binding(get: { language.code }, set: { selection.language = $0 })) {
+                            Text("English").tag(Language.english.code)
+                            ForEach(tracks) { Text($0.title).tag($0.code) }
+                        }
+                        .labelsHidden().fixedSize().help("The language it plays in")
+                    }
                     Spacer()
                     Toggle("CC", isOn: $captionsOn).toggleStyle(.button).controlSize(.small).help("Show the closed captions")
+                    if asset.voiceOver != nil { AdverbBadge(text: "voice", color: .adverbGold) }
                     if asset.music != nil { AdverbBadge(text: "♪ beat-matched", color: .adverbGold) }
                 }
                 ZStack(alignment: .bottom) {
@@ -63,7 +81,7 @@ struct PlayerCard: View {
                             .allowsHitTesting(false)
                     }
                 }
-                if let report = asset.render(orientation)?.report {
+                if let report = render?.report {
                     Text(report.line).adverbType(.codeSmall).foregroundStyle(report.isClean ? Color.adverbInkMuted : Color.adverbWarning)
                         .help(report.warnings.joined(separator: "\n"))
                 }
@@ -72,6 +90,8 @@ struct PlayerCard: View {
         .onAppear(perform: load)
         .onChange(of: selection.orientation) { _, _ in load() }
         .onChange(of: asset.builtAt) { _, _ in load() }
+        .onChange(of: selection.language) { _, _ in load() }
+        .onChange(of: asset.voiceOver) { _, _ in load() }
         .onDisappear { player.stop() }
     }
 
@@ -82,8 +102,9 @@ struct PlayerCard: View {
 
     private func load() {
         showPoster = true
-        guard let render = asset.render(orientation) else { return }
-        let captions = asset.a11y.captions(orientation).map { paths.url($0.vtt) }
+        guard let render else { return }
+        let files = language == .english ? asset.a11y.captions(orientation) : asset.voiceOver?.track(language)?.captions[orientation.rawValue]
+        let captions = files.map { paths.url($0.vtt) }
         player.load(video: paths.url(render.path), captions: captions)
     }
 }

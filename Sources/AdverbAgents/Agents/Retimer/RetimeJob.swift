@@ -6,7 +6,8 @@
 //        in-point + DUR) and corrected by the person's octave and downbeat nudge; then the page
 //        meets the beat — warped (scene starts to downbeats, no Claude call) or re-timed by Claude
 //        (validated; a failed re-time falls back to the warp) — and both orientations render with
-//        the song under them. The silent originals are kept for a revert.
+//        the song under them (and the voice-over over it, ducking it, with every language re-mixed).
+//        The silent originals are kept for a revert.
 //  PIN:  Every re-cut starts from the silent original page, never from a previous re-cut.
 //
 
@@ -62,6 +63,8 @@ public enum RetimeJob {
             let kitPrefix = PageVerifier.relativePath(from: a.folder, to: kit)
             var html = base
             var warp: TimeWarp? = Beatmap.warp(scenes: scenes, grid: grid, duration: duration, endAt: duration - 1.6)
+            // Where the voice-over's lines land: the warp, or for a re-time, the scenes' move.
+            var placement = warp
             var mode = request.mode
             var descriptions = asset.originalA11y?.descriptions ?? asset.a11y.descriptions
 
@@ -82,6 +85,9 @@ public enum RetimeJob {
                         }
                         html = retimed.html
                         warp = nil
+                        placement = newScenes.count == scenes.count && !scenes.isEmpty
+                            ? TimeWarp(knots: zip(scenes, newScenes).map { TimeWarp.Knot(page: $0, real: $1) } + [.init(page: duration, real: duration)])
+                            : nil
                     } else {
                         log.line("re-time kept out: \(problems.joined(separator: " | ")); warping instead")
                         emit(.log("Claude's re-time changed more than timing; warped instead."))
@@ -117,15 +123,26 @@ public enum RetimeJob {
                                     warp: warp, previous: previous, runID: log.id)
             input.renderer = compute.settings.renderer
             input.kit = kit
+            input.placement = placement
+            if let vo = asset.voiceOver, !vo.english.lines.isEmpty, vo.english.lines.allSatisfy(\.isRecorded) {
+                input.narration = NarrationInput(voice: vo.selection, lines: vo.english.lines, scriptPath: vo.english.scriptPath)
+            }
             emit(.step("Stills"))
             let finalInput = input
             let stills = try await AssetFinisher.stills(finalInput)
             emit(.step("Waiting to render"))
-            let updated = try await RenderGate.shared.run {
+            var updated = try await RenderGate.shared.run {
                 try await AssetFinisher.finish(finalInput, stills: stills, progress: { step, p in emit(.step(step.rawValue)); emit(.progress(p)) })
             }
+            // The languages follow the new cut: their clips re-placed, the song under them.
+            if let vo = updated.voiceOver, !vo.languages.isEmpty {
+                let tell = StepTeller(emit)
+                updated = try await VoiceFinisher.deriveLanguages(updated, input: VoiceApplyInput(paths: paths, assetPaths: a, day: day, music: choice,
+                                                                                                  warp: placement, progress: { tell($0, $1) }))
+            }
             for render in updated.renders { log.line("\(render.orientation.rawValue): \(render.report?.line ?? render.path)") }
-            try await CampaignLedger.shared.updateDay(paths, index: dayIndex) { d in d.asset = updated; d.problem = nil }
+            let recut = updated
+            try await CampaignLedger.shared.updateDay(paths, index: dayIndex) { d in d.asset = recut; d.problem = nil }
             emit(.dayDone(dayIndex))
             log.finish(.succeeded)
         } catch is CancellationError {

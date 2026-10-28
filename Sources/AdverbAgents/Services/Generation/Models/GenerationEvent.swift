@@ -15,6 +15,8 @@ public enum GenerationEvent: Sendable, Equatable {
     /// A thinking summary or a tool note, streamed.
     case activity(String)
     case usage(TokenUsage)
+    /// What the run has spent at ElevenLabs so far.
+    case voiceUsage(VoiceUsage)
     case log(String)
     /// The plan was written: this many days.
     case planned(Int)

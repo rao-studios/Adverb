@@ -20,6 +20,7 @@ public struct RunProgress: Sendable, Equatable, Identifiable {
     public var progress: Double = 0
     public var activity: String = ""
     public var usage = TokenUsage()
+    public var voice: VoiceUsage?
     public var log: [String] = []
     public var phase: RunPhase = .running
     public var message: String?
@@ -33,18 +34,36 @@ public struct RunProgress: Sendable, Equatable, Identifiable {
     }
 }
 
-/// Run keys: "plan/<campaign>", "<campaign>/<day>", "beat/<campaign>/<day>".
+/// Run keys: "plan/<campaign>", "<campaign>/<day>", "beat/<campaign>/<day>", "voice/<campaign>/<day>".
 public enum RunKey {
     public static func plan(_ campaign: UUID) -> String { "plan/\(campaign.uuidString)" }
     public static func build(_ campaign: UUID, _ day: Int) -> String { "\(campaign.uuidString)/\(day)" }
     public static func beat(_ campaign: UUID, _ day: Int) -> String { "beat/\(campaign.uuidString)/\(day)" }
+    public static func voice(_ campaign: UUID, _ day: Int) -> String { "voice/\(campaign.uuidString)/\(day)" }
+    /// Every voice run of a campaign starts with this.
+    public static func voicePrefix(_ campaign: UUID) -> String { "voice/\(campaign.uuidString)/" }
 
     public static func parse(_ key: String) -> (kind: String, campaign: UUID?, day: Int?) {
         let parts = key.split(separator: "/").map(String.init)
         switch parts.first {
         case "plan": return ("Plan", parts.count > 1 ? UUID(uuidString: parts[1]) : nil, nil)
         case "beat": return ("Beatmap", parts.count > 1 ? UUID(uuidString: parts[1]) : nil, parts.count > 2 ? Int(parts[2]) : nil)
+        case "voice": return ("Voice", parts.count > 1 ? UUID(uuidString: parts[1]) : nil, parts.count > 2 ? Int(parts[2]) : nil)
         default: return ("Build", UUID(uuidString: parts.first ?? ""), parts.count > 1 ? Int(parts[1]) : nil)
         }
+    }
+}
+
+extension GenerationService.Center.State {
+    /// The run working on one day, whichever kind: what the calendar and the day pane show.
+    public func dayRun(_ campaign: UUID, _ day: Int) -> RunProgress? {
+        RunKey.dayRun(in: runs, campaign, day)
+    }
+}
+
+extension RunKey {
+    public static func dayRun(in runs: [String: RunProgress], _ campaign: UUID, _ day: Int) -> RunProgress? {
+        let candidates = [build(campaign, day), beat(campaign, day), voice(campaign, day)].compactMap { runs[$0] }
+        return candidates.first { $0.phase == .running } ?? candidates.max { $0.startedAt < $1.startedAt }
     }
 }

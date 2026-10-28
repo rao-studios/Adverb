@@ -35,6 +35,8 @@ extension Root {
                 case .manageProject(let slug): ManageProjectSheet(slug: slug, selection: selection)
                 case .newCampaign(let slug): NewCampaignSheet(slug: slug, selection: selection)
                 case .music(let slug, let campaign, let day): SongPicker(slug: slug, campaignID: campaign, dayIndex: day, selection: selection)
+                case .voice(let slug, let campaign, let day): VoiceSheet(slug: slug, campaignID: campaign, dayIndex: day, selection: selection)
+                case .campaignVoice(let slug, let campaign): CampaignVoiceSheet(slug: slug, campaignID: campaign, selection: selection)
                 }
             }
             .adverbRoot()

@@ -41,6 +41,7 @@ extension Settings {
                         switch navigation.section {
                         case .general: GeneralPage(state: config.state)
                         case .claude: ClaudePage(state: config.state, keyDraft: $keyDraft)
+                        case .voice: VoicePage(state: config.state, keyDraft: $voiceKeyDraft)
                         case .rendering: RenderingPage(state: config.state)
                         case .about: AboutPage()
                         }

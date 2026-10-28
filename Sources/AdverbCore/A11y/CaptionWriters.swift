@@ -47,12 +47,14 @@ public enum SRTWriter {
 }
 
 public enum TranscriptWriter {
-    /// The words on screen, the descriptions of what is shown, and the music, in time order.
-    public static func write(title: String, captions: [Cue], descriptions: [Cue], altText: String, music: String?) -> String {
+    /// The words on screen, the descriptions of what is shown, the music, and (when the asset is
+    /// narrated) what the voice says, in time order.
+    public static func write(title: String, captions: [Cue], descriptions: [Cue], altText: String, music: String?, said: [Cue] = []) -> String {
         var out = "# \(title)\n\n"
         if !altText.isEmpty { out += "**Alt text.** \(altText)\n\n" }
         if let music { out += "**Music.** \(music)\n\n" }
-        let all = (captions.map { ($0, "Text") } + descriptions.map { ($0, "Shown") }).sorted { $0.0.start < $1.0.start }
+        let all = (captions.filter { $0.kind != .music }.map { ($0, "Text") } + said.map { ($0, "Said") } + descriptions.map { ($0, "Shown") })
+            .sorted { $0.0.start < $1.0.start }
         for (cue, label) in all {
             let text = cue.text.replacingOccurrences(of: "\n", with: " / ")
             out += "- `\(String(format: "%05.2f", cue.start))` \(label): \(text)\n"

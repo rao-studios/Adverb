@@ -3,8 +3,9 @@
 //  AdverbCore
 //
 //  WHAT: The person's settings, in ~/.rao/apps/adverb/settings.json: the working directory, the
-//        music folder, the model and how hard it thinks, the renderer, and the switches.
-//  PIN:  Never the API key: that is in the Keychain. Decoding is tolerant: a field added later
+//        music folder, the model and how hard it thinks, the renderer, the switches, and the
+//        voice-over defaults (narrate or not, the last voice and model, the languages to make).
+//  PIN:  Never an API key: those are in the Keychain. Decoding is tolerant: a field added later
 //        reads as its default from an older file.
 //
 
@@ -36,6 +37,20 @@ public struct AdverbSettings: Codable, Sendable, Equatable {
     /// A SKILL.md to use instead of the bundled copy (the T9's, while editing the skill).
     public var skillPath: String?
     public var lastProjectSlug: String?
+    /// New campaigns start with voice-over on.
+    public var voiceOverDefault: Bool
+    /// The last ElevenLabs voice chosen: the next campaign's default.
+    public var voiceID: String?
+    public var voiceName: String?
+    public var voiceModel: String
+    /// The languages to narrate in after a day's English is confirmed: the saved preference.
+    public var voiceLanguages: [Language]
+
+    public static let voiceModels: [(id: String, title: String)] = [
+        ("eleven_multilingual_v2", "Multilingual v2 · 29 languages"),
+        ("eleven_v3", "Eleven v3 · most expressive"),
+        ("eleven_flash_v2_5", "Flash v2.5 · half the price"),
+    ]
 
     public static let models: [(id: String, title: String)] = [
         ("claude-opus-5-5", "Claude Opus 5.5"),
@@ -47,11 +62,14 @@ public struct AdverbSettings: Codable, Sendable, Equatable {
     public init(workdir: String? = nil, musicFolder: String? = nil, model: String = "claude-opus-5-5", effort: String = "high",
                 fallbacks: Bool = true, webFetch: Bool = true, reviewPass: Bool = true, buildConcurrency: Int = 2,
                 renderer: RendererKind = .native, supersample: Bool = false, bitrateMbps: Int = 12, skillPath: String? = nil,
-                lastProjectSlug: String? = nil) {
+                lastProjectSlug: String? = nil, voiceOverDefault: Bool = false, voiceID: String? = nil, voiceName: String? = nil,
+                voiceModel: String = VoiceSelection.defaultModel, voiceLanguages: [Language] = []) {
         self.workdir = workdir; self.musicFolder = musicFolder; self.model = model; self.effort = effort
         self.fallbacks = fallbacks; self.webFetch = webFetch; self.reviewPass = reviewPass
         self.buildConcurrency = buildConcurrency; self.renderer = renderer; self.supersample = supersample
         self.bitrateMbps = bitrateMbps; self.skillPath = skillPath; self.lastProjectSlug = lastProjectSlug
+        self.voiceOverDefault = voiceOverDefault; self.voiceID = voiceID; self.voiceName = voiceName
+        self.voiceModel = voiceModel; self.voiceLanguages = voiceLanguages
     }
 
     public init(from decoder: Decoder) throws {
@@ -71,6 +89,17 @@ public struct AdverbSettings: Codable, Sendable, Equatable {
         bitrateMbps = (try? c.decode(Int.self, forKey: .bitrateMbps)) ?? d.bitrateMbps
         skillPath = try? c.decode(String.self, forKey: .skillPath)
         lastProjectSlug = try? c.decode(String.self, forKey: .lastProjectSlug)
+        voiceOverDefault = (try? c.decode(Bool.self, forKey: .voiceOverDefault)) ?? d.voiceOverDefault
+        voiceID = try? c.decode(String.self, forKey: .voiceID)
+        voiceName = try? c.decode(String.self, forKey: .voiceName)
+        voiceModel = (try? c.decode(String.self, forKey: .voiceModel)) ?? d.voiceModel
+        // As codes, so one this build does not know drops only itself, not the list.
+        voiceLanguages = Language.decode((try? c.decode([String].self, forKey: .voiceLanguages)) ?? [])
+    }
+
+    /// The remembered voice, as a campaign would take it.
+    public var voiceSelection: VoiceSelection? {
+        voiceID.map { VoiceSelection(voiceID: $0, voiceName: voiceName ?? $0, modelID: voiceModel) }
     }
 
     public var workdirURL: URL? { workdir.map { URL(fileURLWithPath: $0, isDirectory: true) } }

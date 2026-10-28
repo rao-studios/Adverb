@@ -4,7 +4,7 @@
 //
 //  WHAT: Settings: a sidebar of pages and the open page.
 //  IN:   ConfigService
-//  OUT:  AdverbRuntimeRoot (update, saveKey, forgetKey, testKey, chooseWorkdir, checkToolchain)
+//  OUT:  AdverbRuntimeRoot (update, saveKey, forgetKey, testKey, saveVoiceKey, testVoiceKey, chooseWorkdir, checkToolchain)
 //
 
 import AdverbRuntime
@@ -18,6 +18,7 @@ struct Settings: GraniteComponent {
     let navigation: SettingsNavigation
     @State var tick = 0
     @State var keyDraft = ""
+    @State var voiceKeyDraft = ""
 
     init(navigation: SettingsNavigation) { self.navigation = navigation }
 

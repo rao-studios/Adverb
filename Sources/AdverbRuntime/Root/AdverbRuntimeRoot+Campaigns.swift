@@ -102,12 +102,14 @@ extension AdverbRuntimeRoot {
         generation.center.$planner.cancel(key: RunKey.plan(id))
         generation.center.$builder.cancel(prefix: "\(id.uuidString)/")
         generation.center.$retimer.cancel(prefix: "beat/\(id.uuidString)/")
+        generation.center.$voicer.cancel(prefix: RunKey.voicePrefix(id))
     }
 
     public func cancelRun(_ key: String) {
         switch RunKey.parse(key).kind {
         case "Plan": generation.center.$planner.cancel(key: key)
         case "Beatmap": generation.center.$retimer.cancel(key: key)
+        case "Voice": generation.center.$voicer.cancel(key: key)
         default: generation.center.$builder.cancel(key: key)
         }
     }

@@ -68,6 +68,10 @@ struct DayCell: View {
                 Text(day.postTimeLocal).adverbType(.badge).lineLimit(1).fixedSize()
                 Spacer(minLength: 0)
                 if day.asset?.music != nil { Text("♪").adverbType(.captionStrong) }
+                if let vo = day.asset?.voiceOver {
+                    Image(systemName: "waveform").font(.adverbGlyph(AdverbGlyph.small, weight: .semibold))
+                    if !vo.freshLanguages.isEmpty { Text("+\(vo.freshLanguages.count)").adverbType(.badge).fixedSize() }
+                }
                 if day.problem != nil, run == nil { Image(systemName: "exclamationmark.triangle.fill").font(.adverbGlyph(AdverbGlyph.small)).foregroundStyle(Color.adverbWarning) }
                 statusMark(day)
             }

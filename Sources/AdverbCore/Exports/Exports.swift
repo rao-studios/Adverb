@@ -3,7 +3,8 @@
 //  AdverbCore
 //
 //  WHAT: The month in forms the person follows by hand until posting is automated: a Markdown
-//        sheet of every day (caption, hashtags, alt text, files, why that time), a CSV for a
+//        sheet of every day (caption, hashtags, alt text, files and each voice-over language's
+//        files, why that time), a CSV for a
 //        spreadsheet or a scheduler, and an iCalendar file whose events alarm at each post time.
 //
 
@@ -31,6 +32,20 @@ public enum Exports {
                     }
                 }
                 if let t = asset.a11y.transcriptPath { out += "- Transcript: `\(t)`\n" }
+                if let vo = asset.voiceOver {
+                    out += "- Voice-over: \(vo.voiceName)\(vo.isConfirmed ? "" : " (English not confirmed yet)")\n"
+                    for track in vo.languages where track.isFresh {
+                        for target in day.targets {
+                            guard let render = track.render(target.orientation) else { continue }
+                            var line = "- \(track.language.title), \(target.platform.title): `\(render.path)`"
+                            if PlatformLimits.acceptsCaptionFile(target.platform), let cc = track.captions[target.orientation.rawValue] {
+                                line += " with captions `\(cc.srt)`"
+                            }
+                            out += line + "\n"
+                        }
+                        if let t = track.transcriptPath { out += "- \(track.language.title) transcript: `\(t)`\n" }
+                    }
+                }
                 out += "\n"
                 if !asset.notes.illustrative.isEmpty { out += "Illustrative: \(asset.notes.illustrative.joined(separator: "; ")).\n\n" }
             } else {
@@ -42,17 +57,19 @@ public enum Exports {
 
     public static func csv(_ campaign: Campaign) -> String {
         let header = ["date", "time", "timezone", "post_at_utc", "platforms", "title", "duration", "caption", "hashtags",
-                      "alt_text", "portrait", "landscape", "captions_portrait_srt", "captions_landscape_srt", "status", "reason"]
+                      "alt_text", "portrait", "landscape", "captions_portrait_srt", "captions_landscape_srt", "status", "reason",
+                      "voice", "voice_languages"]
         let iso = ISO8601DateFormatter()
         var rows = [header.joined(separator: ",")]
         for day in campaign.days {
             let a = day.asset
-            let fields = [day.date, day.postTimeLocal, campaign.brief.timeZone, iso.string(from: day.postAt),
-                          day.targets.map(\.platform.rawValue).joined(separator: " "), day.topic.title, String(day.topic.duration),
-                          day.caption, day.hashtags.map { "#\($0)" }.joined(separator: " "), a?.a11y.altText ?? "",
-                          a?.render(.portrait)?.path ?? "", a?.render(.landscape)?.path ?? "",
-                          a?.a11y.captions(.portrait)?.srt ?? "", a?.a11y.captions(.landscape)?.srt ?? "",
-                          day.status.rawValue, day.timeReason]
+            let files: [String] = [a?.render(.portrait)?.path ?? "", a?.render(.landscape)?.path ?? "",
+                                   a?.a11y.captions(.portrait)?.srt ?? "", a?.a11y.captions(.landscape)?.srt ?? ""]
+            let voice: [String] = [a?.voiceOver?.voiceName ?? "", a?.voiceOver?.freshLanguages.map(\.code).joined(separator: " ") ?? ""]
+            let post: [String] = [day.date, day.postTimeLocal, campaign.brief.timeZone, iso.string(from: day.postAt),
+                                  day.targets.map(\.platform.rawValue).joined(separator: " "), day.topic.title, String(day.topic.duration),
+                                  day.caption, day.hashtags.map { "#\($0)" }.joined(separator: " "), a?.a11y.altText ?? ""]
+            let fields: [String] = post + files + [day.status.rawValue, day.timeReason] + voice
             rows.append(fields.map(csvField).joined(separator: ","))
         }
         return rows.joined(separator: "\r\n") + "\r\n"

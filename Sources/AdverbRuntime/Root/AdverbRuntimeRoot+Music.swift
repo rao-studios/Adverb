@@ -55,7 +55,7 @@ extension AdverbRuntimeRoot {
     public func revert(_ slug: String, _ id: UUID, day: Int) async {
         guard let paths = paths(slug, id), let campaign = campaigns.state.campaign(id), let d = campaign.day(day), let asset = d.asset else { return }
         do {
-            let reverted = try AssetFinisher.revert(asset, paths: paths, assetPaths: paths.asset(d.stem))
+            let reverted = try await AssetFinisher.revert(asset, paths: paths, assetPaths: paths.asset(d.stem), day: d)
             let updated = try await CampaignLedger.shared.updateDay(paths, index: day) { $0.asset = reverted }
             campaigns.set(.updated(slug: slug, updated))
             config.set(.notice("Day \(d.date) is back to its silent original."))
