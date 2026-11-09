@@ -14,13 +14,12 @@ import Granite
 @propertyWrapper
 public struct Agent<A: GraniteAgent>: GraniteCustomEvent {
     public let forwarding: Forwarding = .none
+    /// `.onTask` (or another lifecycle) fires the compiled container when the host's lifecycle runs.
     public let lifecycle: Lifecycle
-    public let intermediateSignal = GraniteSignal.Payload<GranitePayload?>()
     public let executable: AgentExecutable<A>
     /// Set at declaration, beside the agent's own default (`GraniteAgent.concurrency`).
     public let concurrency: AgentConcurrency?
 
-    public var signal: GraniteSignal.Payload<GranitePayload?> { executable.signal }
     public var wrappedValue: AgentExecutable<A> { executable }
     public var projectedValue: AgentExecutable<A> { executable }
 

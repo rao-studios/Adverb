@@ -4,8 +4,6 @@ import Granite
 /// What `@Agent var coder: Coder.Agent` holds and `$coder` projects: the handle a view, a boot or
 /// the CLI sends through, cancels through, taps, and attaches compute to.
 public final class AgentExecutable<A: GraniteAgent>: @unchecked Sendable {
-    /// Granite's lifecycle sends here (`@Agent(.onTask)`).
-    public let signal = GraniteSignal.Payload<GranitePayload?>()
     private let lock = NSLock()
     private var container: AgentRunContainer<A>?
     private var resolver: (@Sendable (A.Input) async throws -> A.Compute)?
@@ -62,7 +60,7 @@ public final class AgentExecutable<A: GraniteAgent>: @unchecked Sendable {
     func compile(with host: GraniteEventHost) -> AgentRunContainer<A> {
         lock.withLock {
             if let container { return container }
-            let made = AgentRunContainer<A>(host: host, label: String(describing: A.self), signal: signal)
+            let made = AgentRunContainer<A>(host: host, label: String(describing: A.self))
             made.resolver = resolver
             container = made
             return made

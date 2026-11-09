@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import Granite
 
@@ -15,7 +14,6 @@ final class AgentRunContainer<A: GraniteAgent>: GraniteEventContainer, @unchecke
 
     private let host: GraniteEventHost
     private let agent = A()
-    private var lifecycleSubscription: AnyCancellable?
     private let lock = NSLock()
     private var runs: [String: Live] = [:]
     private var waiting: [(key: String, input: A.Input)] = []
@@ -34,14 +32,12 @@ final class AgentRunContainer<A: GraniteAgent>: GraniteEventContainer, @unchecke
         init(id: AgentRunID) { self.id = id }
     }
 
-    init(host: GraniteEventHost, label: String, signal: GraniteSignal.Payload<GranitePayload?>) {
+    init(host: GraniteEventHost, label: String) {
         self.host = host
         self.label = label
-        // The host's lifecycle (`@Agent(.onTask)`) sends on the wrapper's signal.
-        lifecycleSubscription = signal.publisher.sink { [weak self] payload in self?.fire(payload) }
     }
 
-    /// Granite's own entry: a lifecycle send, or `dispatch` by reducer type.
+    /// Granite's own entry: the host's lifecycle (`@Agent(.onTask)`), or `dispatch` by reducer type.
     func fire(_ payload: GranitePayload?) {
         guard let input = A.lifecycleInput else { return }
         onMain { self.start(input) }
