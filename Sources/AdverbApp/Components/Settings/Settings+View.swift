@@ -40,8 +40,8 @@ extension Settings {
                         }
                         switch navigation.section {
                         case .general: GeneralPage(state: config.state)
-                        case .claude: ClaudePage(state: config.state, keyDraft: $keyDraft)
-                        case .voice: VoicePage(state: config.state, keyDraft: $voiceKeyDraft)
+                        case .models: ModelsPage(state: config.state, models: models.state)
+                        case .voice: VoicePage(state: config.state, models: models.state, voices: voices.state)
                         case .rendering: RenderingPage(state: config.state)
                         case .about: AboutPage()
                         }
@@ -59,5 +59,7 @@ extension Settings {
             }
         }
         .onReceive(configChanged) { _ in tick &+= 1 }
+        .onReceive(modelsChanged) { _ in tick &+= 1 }
+        .onReceive(voicesChanged) { _ in tick &+= 1 }
     }
 }

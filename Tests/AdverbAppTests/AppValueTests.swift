@@ -25,12 +25,19 @@ import AdverbCore
         #expect(LanguageChips.toggled(.japanese, in: []) == [.japanese])
     }
 
-    @Test func quotaReadsPlainly() {
-        let line = VoicePage.quotaLine(VoiceQuota(used: 12_340, limit: 100_000, tier: "creator"))
-        #expect(line.hasPrefix("12,340 of 100,000 characters used this period"))
-        #expect(line.hasSuffix("· Creator plan"))
-        #expect(VoiceCard.modelTitle("eleven_multilingual_v2") == "Multilingual v2")
-        #expect(VoiceCard.modelTitle("eleven_other") == "eleven_other")
+    @MainActor @Test func voicePacksReadByName() {
+        #expect(VoiceCard.packTitle(ModelCatalog.paradeePackID) == ModelCatalog.paradee.title)
+        #expect(VoiceCard.packTitle("") == "Recorded before this Mac's voice")
+        #expect(VoiceCard.packTitle("dev:somewhere") == "dev:somewhere")
+    }
+
+    @Test func arcPhasesSplitIntoTitleDatesAndDetail() {
+        let phase = PlanSummary.Phase("Premise (Nov 4–7): what Ambient is. Notes in the margin of everything.")
+        #expect(phase == PlanSummary.Phase(title: "Premise", when: "Nov 4–7", detail: "What Ambient is. Notes in the margin of everything."))
+        #expect(PlanSummary.Phase("Launch week: the app") == PlanSummary.Phase(title: "Launch week", when: nil, detail: "The app"))
+        #expect(PlanSummary.Phase("No colon here") == PlanSummary.Phase(title: "No colon here", when: nil, detail: ""))
+        let long = "A phase written as one long sentence with no title at all: it keeps going"
+        #expect(PlanSummary.Phase(long).title == long)
     }
 
     @Test func settingsSectionsHaveCopy() {

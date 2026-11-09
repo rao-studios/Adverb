@@ -5,7 +5,7 @@
 //  WHAT: A dependency-free JSON value: request bodies, structured-output schemas, server-tool
 //        blocks echoed back on `pause_turn`.
 //  PIN:  Craft's (CraftCore/Support/JSON/JSONValue.swift), without the model-text salvage that
-//        needs Craft's lenient tool-call parser; Claude's structured outputs are schema-valid.
+//        lives in AnswerParser (a local model's answer is read leniently there).
 //
 import Foundation
 

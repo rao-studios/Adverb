@@ -2,9 +2,12 @@
 //  AdverbRuntimeRoot+Campaigns.swift
 //  AdverbRuntime
 //
-//  WHAT: Campaigns: create a draft, plan it, build its days, go live, mark days posted, export
-//        the month, remove. Runs go through the generation agents; their taps read the campaign
-//        again each time a day is written.
+//  WHAT: Campaigns: create a draft, plan it, write its days to contact sheets, approve or redo each
+//        sheet, render the approved days, go live, mark days posted, export the month, remove. Runs
+//        go through the generation agents; their taps read the campaign again each time a day is
+//        written or a sheet drawn.
+//  PIN:  The sheet gate (Settings): on, a day stops at its sheet until it is approved; off, a day
+//        whose sheet passed its checks renders in the same run.
 //
 
 import AdverbAgents
@@ -64,14 +67,33 @@ extension AdverbRuntimeRoot {
         generation.center.planner.send(Planner.Input(projectSlug: slug, campaignID: id))
     }
 
-    /// Builds every day (or only those without an asset).
-    public func buildAll(_ slug: String, _ id: UUID, onlyMissing: Bool = true) {
+    /// Writes every day that has no sheet yet (or every day) to its contact sheet.
+    public func writeSheets(_ slug: String, _ id: UUID, onlyMissing: Bool = true) {
         guard let campaign = campaigns.state.campaign(id) else { return }
-        let days = campaign.days.filter { !onlyMissing || $0.asset == nil }
-        guard !days.isEmpty else { config.set(.notice("Every day is built.")); return }
-        // Two at a time is the agent's own limit; one at a time (Settings) queues them here.
+        let days = campaign.days.filter { day in
+            guard day.status != .posted, day.status != .skipped else { return false }
+            return !onlyMissing || day.asset?.sheetPath == nil
+        }.filter { generation.state.dayRun(id, $0.index)?.phase != .running }
+        guard !days.isEmpty else { config.set(.notice("Every day has its sheet.")); return }
+        queue(days.map(\.index), slug: slug, id: id)
+    }
+
+    /// One day written (again): with a note, the page it has is changed to do what the note asks.
+    public func write(_ slug: String, _ id: UUID, day: Int, note: String? = nil) {
+        let key = RunKey.build(id, day)
+        watch(generation.center.$drafter.events(key: key), slug: slug, id: id)
+        generation.center.drafter.send(Drafter.Input(projectSlug: slug, campaignID: id, dayIndex: day, note: note))
+    }
+
+    /// Kept for the menu's "Build the month": the sheets, and with the gate off, the videos.
+    public func buildAll(_ slug: String, _ id: UUID, onlyMissing: Bool = true) {
+        writeSheets(slug, id, onlyMissing: onlyMissing)
+    }
+
+    /// Two at a time is the agent's own limit; one at a time (Settings) queues them here.
+    func queue(_ days: [Int], slug: String, id: UUID) {
         guard settings.buildConcurrency <= 1 else {
-            for day in days { build(slug, id, day: day.index) }
+            for day in days { write(slug, id, day: day) }
             return
         }
         buildQueues[id]?.task.cancel()
@@ -79,10 +101,10 @@ extension AdverbRuntimeRoot {
         let task = Task { @MainActor in
             defer { if self.buildQueues[id]?.token == token { self.buildQueues[id] = nil } }
             for day in days {
-                let key = RunKey.build(id, day.index)
-                let tap = generation.center.$builder.events(key: key)
-                watch(generation.center.$builder.events(key: key), slug: slug, id: id)
-                generation.center.builder.send(Builder.Input(projectSlug: slug, campaignID: id, dayIndex: day.index))
+                let key = RunKey.build(id, day)
+                let tap = generation.center.$drafter.events(key: key)
+                watch(generation.center.$drafter.events(key: key), slug: slug, id: id)
+                generation.center.drafter.send(Drafter.Input(projectSlug: slug, campaignID: id, dayIndex: day))
                 for await _ in tap { if Task.isCancelled { break } }
                 if Task.isCancelled { return }
             }
@@ -90,17 +112,54 @@ extension AdverbRuntimeRoot {
         buildQueues[id] = (token, task)
     }
 
-    public func build(_ slug: String, _ id: UUID, day: Int) {
-        let key = RunKey.build(id, day)
-        watch(generation.center.$builder.events(key: key), slug: slug, id: id)
-        generation.center.builder.send(Builder.Input(projectSlug: slug, campaignID: id, dayIndex: day))
+    /// The person looked at a day's sheet and it is right: ready to render.
+    public func approve(_ slug: String, _ id: UUID, day: Int, render now: Bool = false) async {
+        guard let paths = paths(slug, id) else { return }
+        do {
+            let campaign = try await CampaignLedger.shared.updateDay(paths, index: day) { d in
+                guard d.asset?.sheetPath != nil else { return }
+                d.approvedAt = Date()
+                if d.status == .sheeted || d.status == .planned { d.status = .approved }
+            }
+            campaigns.set(.updated(slug: slug, campaign))
+            if now { render(slug, id, day: day) }
+        } catch {
+            config.set(.problem("\(error)"))
+        }
+    }
+
+    /// Every day waiting at its sheet, approved.
+    public func approveAll(_ slug: String, _ id: UUID) async {
+        guard let campaign = campaigns.state.campaign(id) else { return }
+        let waiting = campaign.days.filter { $0.status == .sheeted }.map(\.index)
+        guard !waiting.isEmpty else { config.set(.notice("No sheet is waiting.")); return }
+        for day in waiting { await approve(slug, id, day: day) }
+        config.set(.notice("Approved \(waiting.count) \(waiting.count == 1 ? "sheet" : "sheets")."))
+    }
+
+    /// One day rendered from its sheet.
+    public func render(_ slug: String, _ id: UUID, day: Int) {
+        let key = RunKey.render(id, day)
+        watch(generation.center.$renderer.events(key: key), slug: slug, id: id)
+        generation.center.renderer.send(Renderer.Input(projectSlug: slug, campaignID: id, dayIndex: day))
+    }
+
+    /// Every approved day rendered, two at a time.
+    public func renderApproved(_ slug: String, _ id: UUID) {
+        guard let campaign = campaigns.state.campaign(id) else { return }
+        let days = campaign.days.filter { $0.status == .approved && $0.asset?.sheetPath != nil }
+            .filter { generation.state.dayRun(id, $0.index)?.phase != .running }
+        guard !days.isEmpty else { config.set(.notice("No approved day is waiting to render.")); return }
+        for day in days { render(slug, id, day: day.index) }
+        config.set(.notice("Rendering \(days.count) \(days.count == 1 ? "day" : "days"), two at a time."))
     }
 
     public func cancelRuns(_ id: UUID) {
         buildQueues[id]?.task.cancel()
         buildQueues[id] = nil
         generation.center.$planner.cancel(key: RunKey.plan(id))
-        generation.center.$builder.cancel(prefix: "\(id.uuidString)/")
+        generation.center.$drafter.cancel(prefix: "\(id.uuidString)/")
+        generation.center.$renderer.cancel(prefix: "render/\(id.uuidString)/")
         generation.center.$retimer.cancel(prefix: "beat/\(id.uuidString)/")
         generation.center.$voicer.cancel(prefix: RunKey.voicePrefix(id))
     }
@@ -110,7 +169,8 @@ extension AdverbRuntimeRoot {
         case "Plan": generation.center.$planner.cancel(key: key)
         case "Beatmap": generation.center.$retimer.cancel(key: key)
         case "Voice": generation.center.$voicer.cancel(key: key)
-        default: generation.center.$builder.cancel(key: key)
+        case "Render": generation.center.$renderer.cancel(key: key)
+        default: generation.center.$drafter.cancel(key: key)
         }
     }
 
@@ -120,7 +180,7 @@ extension AdverbRuntimeRoot {
         Task { @MainActor in
             for await event in events {
                 switch event {
-                case .dayDone, .planned: await self.reloadCampaign(slug, id)
+                case .dayDone, .planned, .sheet: await self.reloadCampaign(slug, id)
                 default: break
                 }
             }
@@ -134,6 +194,16 @@ extension AdverbRuntimeRoot {
         var files: [(name: String, url: URL)] = []
         for day in campaign.days {
             guard let asset = day.asset else { continue }
+            if asset.renders.isEmpty {
+                // A day at its sheet: its middle stills stand in for the videos.
+                for o in [Orientation.portrait, .landscape] {
+                    let stills = asset.stills(o).sorted { $0.time < $1.time }
+                    if let still = stills.dropFirst().first ?? stills.first {
+                        files.append((name: "\(day.stem)-\(o.rawValue) · sheet", url: paths.url(still.path)))
+                    }
+                }
+                continue
+            }
             for render in asset.renders.sorted(by: { $0.orientation.rawValue > $1.orientation.rawValue }) {
                 files.append((name: "\(day.stem)-\(render.orientation.rawValue)", url: paths.url(render.path)))
             }
@@ -173,7 +243,10 @@ extension AdverbRuntimeRoot {
                     }
                 } else if status == .planned || status == .rendered {
                     for i in d.targets.indices { d.targets[i].postedAt = nil }
-                    if status == .planned, d.asset != nil { d.status = .rendered }
+                    // Back from posted or skipped: to where the day's files say it is.
+                    if status == .planned, let asset = d.asset {
+                        d.status = !asset.renders.isEmpty ? .rendered : d.approvedAt != nil ? .approved : asset.sheetPath != nil ? .sheeted : .planned
+                    }
                 }
             }
             campaigns.set(.updated(slug: slug, campaign))

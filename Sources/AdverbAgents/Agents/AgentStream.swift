@@ -29,6 +29,7 @@ enum AgentStream {
     static func coalesce(_ a: GenerationEvent, _ b: GenerationEvent) -> GenerationEvent? {
         switch (a, b) {
         case (.activity(let x), .activity(let y)): .activity(x + y)
+        case (.writing(let x), .writing(let y)): .writing(x + y)
         case (.progress, .progress(let y)): .progress(y)
         case (.usage, .usage(let y)): .usage(y)
         case (.voiceUsage, .voiceUsage(let y)): .voiceUsage(y)

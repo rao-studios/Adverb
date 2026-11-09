@@ -13,17 +13,24 @@ extension VoiceService {
         public init() {}
 
         public struct State: TransientState {
-            public var voices: [ElevenVoice] = []
-            public var loading = false
-            public var loadedAt: Date?
-            /// The voice whose preview is playing, by id.
+            /// The packs installed on this Mac, with their voices.
+            public var packs: [SpeechPackInfo] = []
+            /// What is playing: a voice's preview ("<pack>/<voice>") or a clip's tag.
             public var previewing: String?
-            /// Voices whose preview is cached on this Mac.
+            /// A preview being spoken for the first time.
+            public var preparing: String?
+            /// Previews already spoken and kept ("<pack>/<voice>").
             public var cached: Swift.Set<String> = []
             public var problem: String?
             public init() {}
 
-            public func voice(_ id: String?) -> ElevenVoice? { id.flatMap { i in voices.first { $0.id == i } } }
+            public var voices: [SpeechVoice] { packs.flatMap(\.voices) }
+            public func voice(_ id: String?, pack: String? = nil) -> SpeechVoice? {
+                guard let id else { return nil }
+                return voices.first { $0.id == id && (pack == nil || $0.packID == pack) } ?? voices.first { $0.id == id }
+            }
+            public func pack(_ id: String) -> SpeechPackInfo? { packs.first { $0.id == id } }
+            public static func tag(_ voice: SpeechVoice) -> String { "\(voice.packID)/\(voice.id)" }
         }
 
         @Event public var set: Set.Reducer

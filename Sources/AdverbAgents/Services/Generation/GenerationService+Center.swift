@@ -29,8 +29,11 @@ extension GenerationService {
 
         /// The month: one plan per campaign; a second ask replaces the first.
         @Agent public var planner: Planner.Agent
-        /// One day's asset each, two at a time (Claude in parallel; renders take turns).
-        @Agent(.parallel(max: 2)) public var builder: Builder.Agent
+        /// One day written to its contact sheet each, two at a time (the model's calls take turns
+        /// on the GPU; the stills and sheets overlap them).
+        @Agent(.parallel(max: 2)) public var drafter: Drafter.Agent
+        /// One approved day rendered each, two at a time (renders take turns).
+        @Agent(.parallel(max: 2)) public var renderer: Renderer.Agent
         /// A day re-cut to a song.
         @Agent public var retimer: Retimer.Agent
         /// A day's voice-over, English or more languages. One per day (a second ask replaces the

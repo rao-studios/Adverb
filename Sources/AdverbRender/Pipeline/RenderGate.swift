@@ -2,7 +2,7 @@
 //  RenderGate.swift
 //  AdverbRender
 //
-//  WHAT: One render at a time. Builders write pages with Claude side by side, but rendering is
+//  WHAT: One render at a time. Days are written side by side (the writer takes turns on the GPU), but rendering is
 //        CPU-bound: two at once take as long as two in a row and make both late. Stills and
 //        probes skip the gate; they are quick.
 //

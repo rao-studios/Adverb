@@ -4,17 +4,20 @@ import Testing
 @testable import AdverbCore
 
 @Suite struct VoiceSynthTests {
-    let rachel = VoiceSelection(voiceID: "rachel", voiceName: "Rachel")
+    let heart = VoiceSelection(voiceID: "af_heart", voiceName: "Heart", packID: "paradee-af-heart")
 
     @Test func aClipIsKeyedByWhatMakesItSound() {
-        let base = VoiceSynth.cacheKey(text: "Hello.", selection: rachel, language: .english, speed: 1)
-        #expect(base == VoiceSynth.cacheKey(text: "Hello.", selection: rachel, language: .english, speed: 1))
-        #expect(base != VoiceSynth.cacheKey(text: "Hello!", selection: rachel, language: .english, speed: 1))
-        #expect(base != VoiceSynth.cacheKey(text: "Hello.", selection: VoiceSelection(voiceID: "adam", voiceName: "Adam"), language: .english, speed: 1))
-        #expect(base != VoiceSynth.cacheKey(text: "Hello.", selection: rachel, language: .german, speed: 1))
-        #expect(base != VoiceSynth.cacheKey(text: "Hello.", selection: rachel, language: .english, speed: 1.1))
-        var steadier = rachel; steadier.settings.stability = 0.8
-        #expect(base != VoiceSynth.cacheKey(text: "Hello.", selection: steadier, language: .english, speed: 1))
+        func key(_ text: String = "Hello.", selection: VoiceSelection? = nil, revision: String? = "r1", language: Language = .english, speed: Double = 1) -> String {
+            VoiceSynth.cacheKey(text: text, selection: selection ?? heart, revision: revision, language: language, speed: speed)
+        }
+        let base = key()
+        #expect(base == key())
+        #expect(base != key("Hello!"))
+        #expect(base != key(selection: VoiceSelection(voiceID: "am_adam", voiceName: "Adam", packID: "kokoro-82m-en")))
+        #expect(base != key(selection: VoiceSelection(voiceID: "af_heart", voiceName: "Heart", packID: "kokoro-82m-en")), "the same voice in another pack")
+        #expect(base != key(language: .german))
+        #expect(base != key(speed: 1.1))
+        #expect(base != key(revision: "r2"), "a pack published again is spoken again")
     }
 
     @Test func aLongLineIsAskedForFasterUpToTheCap() {

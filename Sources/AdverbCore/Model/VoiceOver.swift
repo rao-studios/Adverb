@@ -2,59 +2,53 @@
 //  VoiceOver.swift
 //  AdverbCore
 //
-//  WHAT: An asset's narration: which ElevenLabs voice speaks it, the English track (Claude's
-//        timed lines, each spoken as its own clip) and a track per other language, each with its
-//        own videos, captions and transcript. Confirming the English is what unlocks the rest.
+//  WHAT: An asset's narration: which voice speaks it (a voice of a pack on this Mac), the English
+//        track (the writer's timed lines, each spoken as its own clip) and a track per other
+//        language, each with its own videos, captions and transcript. Confirming the English is
+//        what unlocks the rest.
 //  PIN:  Times in a line (`at`, `until`) are page time, the page's own seek(t); a clip's spoken
 //        span is relative to the clip. So a re-cut that moves the scenes only re-places the clips
-//        (through the asset's warp) and never asks ElevenLabs again. Clips and lines live on disk
-//        (voice/<code>/), so a remix never re-spends characters.
+//        (through the asset's warp) and never speaks them again. Clips and lines live on disk
+//        (voice/<code>/), so a remix never speaks a line twice.
 //
 
 import Foundation
 
-/// The voice's dials, as ElevenLabs names them on the wire (its `settings` and `voice_settings`).
-public struct VoiceSettings: Codable, Sendable, Equatable, Hashable {
-    public var stability: Double
-    public var similarityBoost: Double
-    public var style: Double
-    public var useSpeakerBoost: Bool
-    /// 0.7…1.2; the fit rule raises it to at most 1.15 for a line that runs long.
-    public var speed: Double
-
-    public init(stability: Double = 0.5, similarityBoost: Double = 0.75, style: Double = 0, useSpeakerBoost: Bool = true, speed: Double = 1) {
-        self.stability = stability; self.similarityBoost = similarityBoost; self.style = style
-        self.useSpeakerBoost = useSpeakerBoost; self.speed = speed
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case stability, style, speed
-        case similarityBoost = "similarity_boost"
-        case useSpeakerBoost = "use_speaker_boost"
-    }
-
-    public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        let d = VoiceSettings()
-        stability = (try? c.decode(Double.self, forKey: .stability)) ?? d.stability
-        similarityBoost = (try? c.decode(Double.self, forKey: .similarityBoost)) ?? d.similarityBoost
-        style = (try? c.decode(Double.self, forKey: .style)) ?? d.style
-        useSpeakerBoost = (try? c.decode(Bool.self, forKey: .useSpeakerBoost)) ?? d.useSpeakerBoost
-        speed = (try? c.decode(Double.self, forKey: .speed)) ?? d.speed
-    }
-}
-
-/// The voice a campaign (or a day) is narrated with.
+/// The voice a campaign (or a day) is narrated with: a voice of a pack on this Mac.
 public struct VoiceSelection: Codable, Sendable, Equatable, Hashable {
     public var voiceID: String
     public var voiceName: String
-    public var modelID: String
-    public var settings: VoiceSettings
+    /// The voice pack (ModelCatalog's packID).
+    public var packID: String
+    /// 1 is the voice's own pace; a line that runs long is spoken again at up to 1.15×.
+    public var speed: Double
 
-    public static let defaultModel = "eleven_multilingual_v2"
+    public static let defaultPack = ModelCatalog.paradeePackID
+    public static let defaultVoice = "af_heart"
 
-    public init(voiceID: String, voiceName: String, modelID: String = VoiceSelection.defaultModel, settings: VoiceSettings = .init()) {
-        self.voiceID = voiceID; self.voiceName = voiceName; self.modelID = modelID; self.settings = settings
+    public init(voiceID: String = VoiceSelection.defaultVoice, voiceName: String = "Heart", packID: String = VoiceSelection.defaultPack, speed: Double = 1) {
+        self.voiceID = voiceID; self.voiceName = voiceName; self.packID = packID; self.speed = speed
+    }
+
+    public static let `default` = VoiceSelection()
+
+    enum CodingKeys: String, CodingKey { case voiceID, voiceName, packID, speed }
+
+    /// PIN: a selection saved by the ElevenLabs build (`modelID`, `settings`) names a voice no pack
+    /// has; it reads as that name in the default pack, and the voice step falls back to the pack's
+    /// first voice and says so.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        voiceID = (try? c.decode(String.self, forKey: .voiceID)) ?? Self.defaultVoice
+        voiceName = (try? c.decode(String.self, forKey: .voiceName)) ?? voiceID
+        packID = (try? c.decode(String.self, forKey: .packID)) ?? Self.defaultPack
+        speed = (try? c.decode(Double.self, forKey: .speed)) ?? 1
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(voiceID, forKey: .voiceID); try c.encode(voiceName, forKey: .voiceName)
+        try c.encode(packID, forKey: .packID); try c.encode(speed, forKey: .speed)
     }
 }
 
@@ -84,9 +78,9 @@ public struct NarrationLine: Codable, Sendable, Equatable, Hashable {
     public var characters: Int
     public var requestID: String?
     public var speed: Double
-    /// Claude shortened it because the first take ran past its window.
+    /// The writer shortened it because the first take ran past its window.
     public var shortened: Bool
-    /// Text, voice, model, language and speed: a clip with the same key is reused.
+    /// Text, voice, pack, language and speed: a clip with the same key is reused.
     public var cacheKey: String?
 
     public init(index: Int, text: String, at: Double, until: Double, spokenStart: Double? = nil, spokenEnd: Double? = nil,
@@ -114,15 +108,27 @@ public struct NarrationLine: Codable, Sendable, Equatable, Hashable {
 public struct NarrationScript: Codable, Sendable, Equatable, Hashable {
     public var language: Language
     public var voiceID: String
-    public var modelID: String
+    public var packID: String
     public var lines: [NarrationLine]
     public var generatedAt: Date
     /// For a translation: the English text it was made from, so a changed English marks it stale.
     public var translatedFrom: [String]?
 
-    public init(language: Language, voiceID: String, modelID: String, lines: [NarrationLine], generatedAt: Date = Date(), translatedFrom: [String]? = nil) {
-        self.language = language; self.voiceID = voiceID; self.modelID = modelID; self.lines = lines
+    public init(language: Language, voiceID: String, packID: String, lines: [NarrationLine], generatedAt: Date = Date(), translatedFrom: [String]? = nil) {
+        self.language = language; self.voiceID = voiceID; self.packID = packID; self.lines = lines
         self.generatedAt = generatedAt; self.translatedFrom = translatedFrom
+    }
+
+    enum CodingKeys: String, CodingKey { case language, voiceID, packID, lines, generatedAt, translatedFrom }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        language = try c.decode(Language.self, forKey: .language)
+        voiceID = (try? c.decode(String.self, forKey: .voiceID)) ?? VoiceSelection.defaultVoice
+        packID = (try? c.decode(String.self, forKey: .packID)) ?? ""
+        lines = (try? c.decode([NarrationLine].self, forKey: .lines)) ?? []
+        generatedAt = (try? c.decode(Date.self, forKey: .generatedAt)) ?? Date()
+        translatedFrom = try? c.decode([String].self, forKey: .translatedFrom)
     }
 }
 
@@ -160,8 +166,8 @@ public struct VoiceTrack: Codable, Sendable, Equatable, Hashable {
 public struct VoiceOver: Codable, Sendable, Equatable, Hashable {
     public var voiceID: String
     public var voiceName: String
-    public var modelID: String
-    public var settings: VoiceSettings
+    public var packID: String
+    public var speed: Double
     public var english: VoiceTrack
     public var languages: [VoiceTrack]
     /// Set when the person has listened to the English and said it is right; cleared when the
@@ -170,11 +176,27 @@ public struct VoiceOver: Codable, Sendable, Equatable, Hashable {
     public var appliedAt: Date
 
     public init(selection: VoiceSelection, english: VoiceTrack, languages: [VoiceTrack] = [], confirmedAt: Date? = nil, appliedAt: Date = Date()) {
-        voiceID = selection.voiceID; voiceName = selection.voiceName; modelID = selection.modelID; settings = selection.settings
+        voiceID = selection.voiceID; voiceName = selection.voiceName; packID = selection.packID; speed = selection.speed
         self.english = english; self.languages = languages; self.confirmedAt = confirmedAt; self.appliedAt = appliedAt
     }
 
-    public var selection: VoiceSelection { VoiceSelection(voiceID: voiceID, voiceName: voiceName, modelID: modelID, settings: settings) }
+    enum CodingKeys: String, CodingKey { case voiceID, voiceName, packID, speed, english, languages, confirmedAt, appliedAt }
+
+    /// PIN: a voice-over made by the ElevenLabs build has no `packID`; it reads with an empty one,
+    /// so its clips play and are kept, and the next voice step speaks it again on this Mac.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        voiceID = try c.decode(String.self, forKey: .voiceID)
+        voiceName = (try? c.decode(String.self, forKey: .voiceName)) ?? voiceID
+        packID = (try? c.decode(String.self, forKey: .packID)) ?? ""
+        speed = (try? c.decode(Double.self, forKey: .speed)) ?? 1
+        english = try c.decode(VoiceTrack.self, forKey: .english)
+        languages = (try? c.decode([VoiceTrack].self, forKey: .languages)) ?? []
+        confirmedAt = try? c.decode(Date.self, forKey: .confirmedAt)
+        appliedAt = (try? c.decode(Date.self, forKey: .appliedAt)) ?? Date()
+    }
+
+    public var selection: VoiceSelection { VoiceSelection(voiceID: voiceID, voiceName: voiceName, packID: packID, speed: speed) }
     public var isConfirmed: Bool { confirmedAt != nil }
 
     public func track(_ language: Language) -> VoiceTrack? {
@@ -191,52 +213,39 @@ public struct VoiceOver: Codable, Sendable, Equatable, Hashable {
     }
 }
 
-/// What a run spent at ElevenLabs.
+/// What a run spoke.
 public struct VoiceUsage: Codable, Sendable, Equatable, Hashable {
     public var characters: Int
+    /// Lines spoken (a clip reused is not counted).
     public var requests: Int
-    public var modelID: String
+    /// Seconds of speech made.
+    public var seconds: Double
+    public var packID: String
 
-    public init(characters: Int = 0, requests: Int = 0, modelID: String = VoiceSelection.defaultModel) {
-        self.characters = characters; self.requests = requests; self.modelID = modelID
+    public init(characters: Int = 0, requests: Int = 0, seconds: Double = 0, packID: String = "") {
+        self.characters = characters; self.requests = requests; self.seconds = seconds; self.packID = packID
+    }
+
+    enum CodingKeys: String, CodingKey { case characters, requests, seconds, packID }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        characters = (try? c.decode(Int.self, forKey: .characters)) ?? 0
+        requests = (try? c.decode(Int.self, forKey: .requests)) ?? 0
+        seconds = (try? c.decode(Double.self, forKey: .seconds)) ?? 0
+        packID = (try? c.decode(String.self, forKey: .packID)) ?? ""
     }
 
     public static func + (a: VoiceUsage, b: VoiceUsage) -> VoiceUsage {
-        VoiceUsage(characters: a.characters + b.characters, requests: a.requests + b.requests, modelID: b.characters > 0 ? b.modelID : a.modelID)
+        VoiceUsage(characters: a.characters + b.characters, requests: a.requests + b.requests, seconds: a.seconds + b.seconds,
+                   packID: b.packID.isEmpty ? a.packID : b.packID)
     }
 
     public var isEmpty: Bool { characters == 0 && requests == 0 }
 
-    /// An estimate in US dollars at the API's list price per thousand characters.
-    public func estimatedUSD() -> Double { Double(characters) / 1000 * Self.pricePer1k(modelID) }
-
-    /// API list price per 1,000 characters (2026-10; verify at elevenlabs.io/pricing/api).
-    public static func pricePer1k(_ model: String) -> Double {
-        switch model {
-        case "eleven_flash_v2_5", "eleven_flash_v2", "eleven_turbo_v2_5", "eleven_turbo_v2": 0.05
-        case "eleven_v4_turbo": 0.04
-        case "eleven_v4": 0.08
-        default: 0.10
-        }
-    }
-
     public var line: String {
-        String(format: "%@ characters in %d requests · ≈ $%.2f", characters.formatted(), requests, estimatedUSD())
+        String(format: "%d %@, %.1f s of speech, %@ characters", requests, requests == 1 ? "line" : "lines", seconds, characters.formatted())
     }
-}
-
-/// Where the ElevenLabs subscription stands: what Settings shows beside the key.
-public struct VoiceQuota: Codable, Sendable, Equatable, Hashable {
-    public var used: Int
-    public var limit: Int
-    public var resetsAt: Date?
-    public var tier: String?
-
-    public init(used: Int, limit: Int, resetsAt: Date? = nil, tier: String? = nil) {
-        self.used = used; self.limit = limit; self.resetsAt = resetsAt; self.tier = tier
-    }
-
-    public var remaining: Int { max(0, limit - used) }
 }
 
 extension Campaign {

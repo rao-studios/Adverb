@@ -31,6 +31,8 @@ public struct PageInfo: Sendable, Equatable, Codable {
 
 public enum RenderError: Error, CustomStringConvertible {
     case loadTimedOut(URL)
+    /// It loaded but never became ready, and said why (a script's errors, with their lines).
+    case notReady(URL, errors: [String])
     case loadFailed(String)
     case notAKitPage(String)
     case badSnapshot(String)
@@ -40,6 +42,8 @@ public enum RenderError: Error, CustomStringConvertible {
     public var description: String {
         switch self {
         case .loadTimedOut(let url): "The page did not become ready in time: \(url.lastPathComponent)"
+        case .notReady(let url, let errors):
+            "\(url.lastPathComponent) never called ready(), because its script failed: " + errors.prefix(3).joined(separator: "; ")
         case .loadFailed(let message): "The page failed to load: \(message)"
         case .notAKitPage(let message): "Not a kit page: \(message)"
         case .badSnapshot(let message): "A frame could not be captured: \(message)"
@@ -95,10 +99,18 @@ public final class WebFrameSource: NSObject, WKNavigationDelegate {
             if let ready = try? await webView.evaluateJavaScript(Harness.ready) as? Int, ready == 1 { break }
             try await Task.sleep(nanoseconds: 50_000_000)
         }
-        guard (try? await webView.evaluateJavaScript(Harness.ready) as? Int) == 1 else { throw RenderError.loadTimedOut(page) }
+        guard (try? await webView.evaluateJavaScript(Harness.ready) as? Int) == 1 else {
+            let json = try? await webView.evaluateJavaScript("JSON.stringify((window.__ADVERB__&&window.__ADVERB__.errors)||[])") as? String
+            let errors = json.flatMap { try? JSONDecoder().decode([String].self, from: Data($0.utf8)) } ?? []
+            throw errors.isEmpty ? RenderError.loadTimedOut(page) : RenderError.notReady(page, errors: errors)
+        }
         _ = try? await webView.evaluateJavaScript("document.fonts.ready.then(function(){return 1})")
         let json = try await webView.evaluateJavaScript(Harness.probe) as? String ?? "{}"
-        let info = try JSONDecoder().decode(PageInfo.self, from: Data(json.utf8))
+        var info = try JSONDecoder().decode(PageInfo.self, from: Data(json.utf8))
+        if let loaded = try? await webView.callAsyncJavaScript(Harness.loadFaces, contentWorld: .page) as? String,
+           let faces = try? JSONDecoder().decode([String: Bool].self, from: Data(loaded.utf8)), !faces.isEmpty {
+            info.fonts = faces
+        }
         guard info.dur > 0 else { throw RenderError.notAKitPage("window.DUR is not set") }
         return info
     }

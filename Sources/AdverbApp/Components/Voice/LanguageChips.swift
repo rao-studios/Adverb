@@ -3,7 +3,8 @@
 //  Adverb
 //
 //  WHAT: The languages a voice-over can be made in, as chips to toggle. The choice is the saved
-//        preference: whoever shows the chips persists the change it hands back.
+//        preference: whoever shows the chips persists the change it hands back. A language no voice
+//        on this Mac speaks is shown, and cannot be chosen yet.
 //
 
 import AdverbCore
@@ -14,6 +15,8 @@ struct LanguageChips: View {
     /// A check on the chip: that language's videos are already made.
     var mark: (Language) -> Bool = { _ in false }
     var disabled = false
+    /// The languages a voice on this Mac speaks; nil: all.
+    var speakable: Swift.Set<Language>? = nil
     let change: ([Language]) -> Void
 
     /// `list` with `language` in or out, in the canonical order.
@@ -28,8 +31,9 @@ struct LanguageChips: View {
                     AdverbChip(label: language.title, systemImage: mark(language) ? "checkmark" : nil, isOn: selected.contains(language))
                 }
                 .buttonStyle(.plain)
-                .disabled(disabled)
-                .help(language.nativeTitle)
+                .disabled(disabled || !(speakable?.contains(language) ?? true))
+                .opacity(speakable?.contains(language) ?? true ? 1 : 0.45)
+                .help(speakable?.contains(language) ?? true ? language.nativeTitle : "No voice on this Mac speaks \(language.title) yet")
             }
         }
     }

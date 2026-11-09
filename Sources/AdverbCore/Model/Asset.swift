@@ -3,7 +3,7 @@
 //  AdverbCore
 //
 //  WHAT: A built asset: its page, its two renders (and the silent originals once music replaced
-//        them), stills, the contact sheet, what Claude said about accuracy, the accessibility files,
+//        them), stills, the contact sheet, what the writer said about accuracy, the accessibility files,
 //        the music, when there is some, and the voice-over with its languages.
 //  PIN:  Paths are relative to the campaign folder, so a campaign folder moved with its drive
 //        still opens.

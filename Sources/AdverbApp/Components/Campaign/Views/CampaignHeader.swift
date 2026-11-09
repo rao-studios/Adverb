@@ -3,7 +3,8 @@
 //  Adverb
 //
 //  WHAT: The campaign's bar: its name and window, its state (draft → live → archived), whether it
-//        is narrated (and the built days still silent, to narrate), and plan, build, export, reveal.
+//        is narrated (and the built days still silent, to narrate), and plan, the sheets (write them,
+//        approve them, render the approved), export, reveal.
 //
 
 import AdverbCore
@@ -33,20 +34,35 @@ struct CampaignHeader: View {
                 if silent > 0 {
                     Button("Voice \(silent) built \(silent == 1 ? "day" : "days")") { root.voiceBuiltDays(project.slug, campaign) }
                         .buttonStyle(.adverbQuiet).disabled(busy)
-                        .help("These days were built before the campaign was narrated: give them \(voice.voiceName)'s voice, timed to their text, without a Claude build")
+                        .help("These days were built before the campaign was narrated: give them \(voice.voiceName)'s voice, timed to their text, without writing them again")
                 }
             }
             if busy {
                 Button("Stop") { root.cancelRuns(campaign.id) }.buttonStyle(.adverbQuiet).help("Stop the runs working on this campaign")
             }
             if campaign.isPlanned {
-                let missing = campaign.days.filter { $0.asset == nil }.count
+                let gate = root.settings.sheetGate
+                let missing = campaign.days.filter { $0.asset?.sheetPath == nil && $0.status != .posted && $0.status != .skipped }.count
+                let waiting = campaign.days.filter { $0.status == .sheeted }.count
+                let approved = campaign.days.filter { $0.status == .approved }.count
                 if missing > 0 {
-                    Button(missing == campaign.days.count ? "Build the month" : "Build \(missing) remaining") {
-                        root.buildAll(project.slug, campaign.id, onlyMissing: true)
+                    Button(gate ? (missing == campaign.days.count ? "Write the sheets" : "Write \(missing) \(missing == 1 ? "sheet" : "sheets")")
+                                : (missing == campaign.days.count ? "Build the month" : "Build \(missing) remaining")) {
+                        root.writeSheets(project.slug, campaign.id, onlyMissing: true)
                     }
-                    .buttonStyle(.adverbGold)
-                    .help("Write, render and caption every day that has no asset yet, two at a time")
+                    .buttonStyle(waiting + approved == 0 ? .adverbGold : .adverbQuiet)
+                    .help(gate ? "Write each day's page, voice and stills to a contact sheet on this Mac, to look at before anything renders"
+                               : "Write each day to its sheet and render it when it passes its checks, on this Mac")
+                }
+                if waiting > 0 {
+                    Button("Approve \(waiting) \(waiting == 1 ? "sheet" : "sheets")") { Task { await root.approveAll(project.slug, campaign.id) } }
+                        .buttonStyle(.adverbQuiet)
+                        .help("Every sheet waiting is right as it is: ready to render. Open a day to approve it alone, or send it back with a note.")
+                }
+                if approved > 0 {
+                    Button("Render \(approved) approved") { root.renderApproved(project.slug, campaign.id) }
+                        .buttonStyle(.adverbGold)
+                        .help("Render both orientations of every approved day, with captions and its voice, two at a time")
                 }
                 stateMenu
             } else if !busy {
@@ -55,7 +71,7 @@ struct CampaignHeader: View {
             Menu {
                 if campaign.isPlanned {
                     Button("Re-plan the month…") { root.plan(project.slug, campaign.id) }
-                    Button("Rebuild every day") { root.buildAll(project.slug, campaign.id, onlyMissing: false) }
+                    Button("Write every day again") { root.writeSheets(project.slug, campaign.id, onlyMissing: false) }
                     let confirmed = campaign.days.filter { $0.asset?.voiceOver?.isConfirmed == true }.count
                     if confirmed > 0 {
                         Button("Voice \(confirmed) confirmed \(confirmed == 1 ? "day" : "days") in your languages") { root.voiceAllConfirmed(project.slug, campaign.id) }

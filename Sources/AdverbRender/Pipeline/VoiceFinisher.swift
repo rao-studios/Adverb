@@ -163,7 +163,7 @@ public enum VoiceFinisher {
     /// The voice-over with a new English track: what changed decides what the languages keep.
     static func updated(_ previous: VoiceOver?, selection: VoiceSelection, english: VoiceTrack, assetPaths a: AssetPaths, paths: CampaignPaths) -> VoiceOver {
         guard var vo = previous else { return VoiceOver(selection: selection, english: english) }
-        let voiceChanged = vo.voiceID != selection.voiceID || vo.modelID != selection.modelID
+        let voiceChanged = vo.voiceID != selection.voiceID || vo.packID != selection.packID
         let wordsChanged = vo.english.lines.map(\.text) != english.lines.map(\.text)
         if voiceChanged || wordsChanged {
             vo.confirmedAt = nil
@@ -179,7 +179,7 @@ public enum VoiceFinisher {
                 return t
             }
         }
-        vo.voiceID = selection.voiceID; vo.voiceName = selection.voiceName; vo.modelID = selection.modelID; vo.settings = selection.settings
+        vo.voiceID = selection.voiceID; vo.voiceName = selection.voiceName; vo.packID = selection.packID; vo.speed = selection.speed
         vo.english = english
         vo.appliedAt = Date()
         return vo

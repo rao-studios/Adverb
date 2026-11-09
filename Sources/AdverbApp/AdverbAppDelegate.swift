@@ -66,7 +66,13 @@ final class AdverbAppDelegate: NSObject, NSApplicationDelegate {
     @objc func buildRemaining(_ sender: Any?) {
         let s = MainWindowController.shared.selection
         guard let slug = s.projectSlug, let id = s.campaignID else { return }
-        AdverbRuntimeRoot.shared.buildAll(slug, id, onlyMissing: true)
+        AdverbRuntimeRoot.shared.writeSheets(slug, id, onlyMissing: true)
+    }
+
+    @objc func renderApproved(_ sender: Any?) {
+        let s = MainWindowController.shared.selection
+        guard let slug = s.projectSlug, let id = s.campaignID else { return }
+        AdverbRuntimeRoot.shared.renderApproved(slug, id)
     }
 
     @objc func exportCampaign(_ sender: Any?) {

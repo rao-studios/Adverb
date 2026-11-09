@@ -15,11 +15,6 @@ extension ConfigService {
         public struct Meta: GranitePayload {
             public enum Kind: Sendable {
                 case settings(AdverbSettings)
-                case key(source: KeySource?, masked: String?)
-                case keyChecked(Bool?)
-                case voiceKey(source: KeySource?, masked: String?)
-                case voiceKeyChecked(Bool?)
-                case voiceQuota(VoiceQuota?)
                 case gate(Gate)
                 case toolchain([ToolCheck])
                 case notice(String?)

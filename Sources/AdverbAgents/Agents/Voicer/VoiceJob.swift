@@ -2,13 +2,17 @@
 //  VoiceJob.swift
 //  AdverbAgents
 //
-//  WHAT: A day's voice-over. English: Claude writes the lines for the built page (or the lines it
-//        has are kept), ElevenLabs speaks them, and they are mixed onto both renders with the
-//        captions and transcript made from them. Languages: the confirmed English translated by
-//        Claude, spoken in the same voice, and remuxed from the English renders onto each
-//        language's own videos. The build's voice step uses the same script and record helpers.
-//  PIN:  Lines too long for their window are recorded faster first (≤ 1.15×), then shortened by
-//        Claude once; what is still long is kept and logged (it runs into the next scene).
+//  WHAT: A day's voice-over. English: the writer writes the lines for the built page (or the lines
+//        it has are kept), the voice on this Mac speaks them, and they are mixed onto both renders
+//        with the captions and transcript made from them. Languages: the confirmed English translated
+//        by the writer, spoken in the same voice where its pack speaks the language, and remuxed from
+//        the English renders onto each language's own videos. The sheet's voice step uses the same
+//        script and record helpers.
+//  PIN:  Lines too long for their window are recorded faster first (≤ 1.15×, when the voice can),
+//        then shortened by the writer once; what is still long is kept and logged (it runs into the
+//        next scene).
+//  PIN:  A voice the selection names that is not on this Mac (a campaign narrated by the ElevenLabs
+//        build) is spoken by the pack's first voice, and the log says so.
 //
 
 import AdverbCore
@@ -52,19 +56,21 @@ public enum VoiceJob {
         case .english: kind = .voice(day: dayIndex)
         case .languages(let languages): kind = .languages(day: dayIndex, languages)
         }
-        let log = RunLog(paths: paths, campaignID: campaignID, kind: kind, model: compute.settings.model)
+        let log = RunLog(paths: paths, campaignID: campaignID, kind: kind, model: compute.text.info.id)
         do {
             let campaign = try await CampaignLedger.shared.read(paths)
             guard let day = campaign.day(dayIndex) else { throw CampaignError.noDay(dayIndex) }
             guard let asset = day.asset, !asset.renders.isEmpty else { throw VoiceError.notBuilt }
-            guard let client = compute.voice else { throw ElevenLabsError.noKey }
+            guard let provider = compute.voice else { throw SpeechError.noPack }
             switch task {
-            case .english(let selection, let rescript):
+            case .english(let asked, let rescript):
+                let (selection, voice) = try await speaker(asked, provider: provider, log: log)
                 try await english(selection, rescript: rescript, day: day, asset: asset, project: project, paths: paths,
-                                  client: client, compute: compute, log: log, emit: emit)
+                                  voice: voice, compute: compute, log: log, emit: emit)
             case .languages(let languages):
-                try await languagesRun(languages, day: day, asset: asset, project: project, paths: paths,
-                                       client: client, compute: compute, log: log, emit: emit)
+                let (selection, voice) = try await speaker(asset.voiceOver?.selection ?? .default, provider: provider, log: log)
+                try await languagesRun(languages, selection: selection, day: day, asset: asset, project: project, paths: paths,
+                                       voice: voice, compute: compute, log: log, emit: emit)
             }
             if let v = log.voice { emit(.voiceUsage(v)) }
             log.finish(.succeeded)
@@ -83,12 +89,23 @@ public enum VoiceJob {
 
     // MARK: - English
 
+    /// The voice a selection names, as this Mac has it: its pack loaded.
+    public static func speaker(_ selection: VoiceSelection, provider: any SpeechProvider, log: RunLog) async throws -> (VoiceSelection, any SpeechSynthesizer) {
+        guard let (pack, voice) = provider.resolve(selection) else { throw SpeechError.noPack }
+        var resolved = selection
+        if voice.id != selection.voiceID || pack.id != selection.packID {
+            log.line("\(selection.voiceName) is not a voice on this Mac; \(voice.name) (\(pack.title)) speaks instead")
+            resolved = VoiceSelection(voiceID: voice.id, voiceName: voice.name, packID: pack.id, speed: selection.speed)
+        }
+        return (resolved, try await provider.synthesizer(pack: pack.id))
+    }
+
     static func english(_ selection: VoiceSelection, rescript: Bool, day: CampaignDay, asset: Asset, project: Project, paths: CampaignPaths,
-                        client: ElevenLabsClient, compute: AdverbCompute, log: RunLog, emit: @escaping @Sendable (GenerationEvent) -> Void) async throws {
+                        voice: any SpeechSynthesizer, compute: AdverbCompute, log: RunLog, emit: @escaping @Sendable (GenerationEvent) -> Void) async throws {
         let a = paths.asset(day.stem)
         let duration = Double(day.topic.duration)
         let readAccess = compute.workspace.projectFolder(project.slug)
-        log.line("\(day.date) · \(day.topic.title) · \(selection.voiceName) (\(selection.modelID))")
+        log.line("\(day.date) · \(day.topic.title) · \(selection.voiceName) (\(voice.pack.title))")
         // The lines are timed to the page the asset was built from (before any re-cut).
         let original = a.original.appendingPathComponent("page.html")
         let basePage = FileManager.default.fileExists(atPath: original.path) ? original : a.page
@@ -99,7 +116,7 @@ public enum VoiceJob {
             lines = try await script(day: day, html: html, onScreen: screen, project: project, paths: paths, compute: compute, log: log, emit: emit)
         }
         lines = try await record(lines, language: .english, selection: selection, existing: existingLines(a, .english), assetPaths: a,
-                                 paths: paths, client: client, compute: compute, log: log, emit: emit)
+                                 paths: paths, voice: voice, compute: compute, log: log, emit: emit)
 
         // The voice leads the page; with a song, its lines land on the beat.
         var music = asset.music
@@ -118,12 +135,12 @@ public enum VoiceJob {
             let input = VoiceApplyInput(paths: paths, assetPaths: a, day: day, music: music, warp: asset.warp, progress: { tell($0, $1) })
             updated = try await VoiceFinisher.applyEnglish(asset, selection: selection, lines: lines, scriptPath: paths.relative(a.script(.english)), input: input)
         } else {
-            // The page plays at the voice's pace: rendered again (no Claude call), the song under it.
+            // The page plays at the voice's pace: rendered again (the writer is not asked), the song under it.
             var html = (try? String(contentsOf: basePage, encoding: .utf8)) ?? ""
             if music != nil {
                 html = Beatmap.withBeatScripts(html, kitPrefix: PageVerifier.relativePath(from: a.folder, to: compute.kitFolder(project)),
                                                beatsFile: a.beats.lastPathComponent)
-                if retimed { log.line("a narrated asset follows its voice: the Claude re-time gives way to the voice's lines on the beat") }
+                if retimed { log.line("a narrated asset follows its voice: the writer's re-time gives way to the voice's lines on the beat") }
                 music?.mode = .warp
             }
             try AtomicFile.write(html, to: a.page)
@@ -157,25 +174,32 @@ public enum VoiceJob {
 
     // MARK: - Languages
 
-    static func languagesRun(_ languages: [Language], day: CampaignDay, asset: Asset, project: Project, paths: CampaignPaths,
-                             client: ElevenLabsClient, compute: AdverbCompute, log: RunLog, emit: @escaping @Sendable (GenerationEvent) -> Void) async throws {
+    static func languagesRun(_ languages: [Language], selection: VoiceSelection, day: CampaignDay, asset: Asset, project: Project, paths: CampaignPaths,
+                             voice: any SpeechSynthesizer, compute: AdverbCompute, log: RunLog, emit: @escaping @Sendable (GenerationEvent) -> Void) async throws {
         guard var vo = asset.voiceOver, !vo.english.lines.isEmpty, vo.english.lines.allSatisfy(\.isRecorded) else { throw VoiceError.noEnglish }
         guard vo.isConfirmed else { throw VoiceError.notConfirmed }
+        let unspoken = languages.filter { $0 != .english && !voice.pack.supports($0) }
+        if !unspoken.isEmpty {
+            let names = unspoken.map(\.title).joined(separator: ", ")
+            log.line("no voice on this Mac speaks \(names) yet: left out")
+            emit(.problem("No voice on this Mac speaks \(names) yet."))
+        }
+        let languages = languages.filter { voice.pack.supports($0) }
         let a = paths.asset(day.stem)
         var current = asset
         let englishText = vo.english.lines.map(\.text)
         let tell = StepTeller(emit)
         for language in languages.sorted() where language != .english {
             try Task.checkCancellation()
-            log.line("\(language.title) · \(vo.voiceName)")
+            log.line("\(language.title) · \(selection.voiceName)")
             var track = vo.track(language) ?? VoiceTrack(language: language, scriptPath: paths.relative(a.script(language)), lines: [])
             if track.stale || track.lines.count != vo.english.lines.count || track.translatedFrom != englishText {
                 track.lines = try await translate(vo.english.lines, into: language, day: day, project: project, paths: paths,
                                                   compute: compute, log: log, emit: emit)
                 track.translatedFrom = englishText
             }
-            track.lines = try await record(track.lines, language: language, selection: vo.selection, existing: existingLines(a, language) + track.lines,
-                                           assetPaths: a, paths: paths, client: client, compute: compute, log: log, emit: emit)
+            track.lines = try await record(track.lines, language: language, selection: selection, existing: existingLines(a, language) + track.lines,
+                                           assetPaths: a, paths: paths, voice: voice, compute: compute, log: log, emit: emit)
             track.stale = false
             track.scriptPath = paths.relative(a.script(language))
             vo.upsert(track)
@@ -192,7 +216,7 @@ public enum VoiceJob {
 
     // MARK: - Shared with the build
 
-    /// Claude's lines for the page, held to the contract (one round of fixes).
+    /// The writer's lines for the page, held to the contract (one round of fixes).
     /// `onScreen`: when each piece of text arrives (page time); each line is timed to the one it
     /// speaks about.
     public static func script(day: CampaignDay, html: String, onScreen: [Cue], project: Project, paths: CampaignPaths, compute: AdverbCompute, log: RunLog,
@@ -203,18 +227,19 @@ public enum VoiceJob {
         let duration = Double(day.topic.duration)
         let messages = compute.prompts.narrate(digest: digest.text, day: day, scenes: PageVerifier.scenes(html), duration: day.topic.duration,
                                                project: project, onScreen: onScreen)
-        var request = ClaudeRequest(system: compute.prompts.system, messages: messages, schema: Schemas.narration, maxTokens: 16_000)
-        var (answer, message) = try await ClaudeCall.structured(NarrationResponse.self, client: compute.client, request: request, log: log, emit: emit)
+        var request = ModelRequest(system: compute.prompts.system, turns: messages, format: Schemas.narrationFormat, maxTokens: 4_096,
+                                   temperature: 0.6, label: "voice-over")
+        var (answer, message) = try await ModelCall.structured(NarrationResponse.self, model: compute.text, request: request, log: log, emit: emit)
         var lines = NarrationCaptions.lines(from: answer)
         let problems = NarrationCaptions.problems(lines, duration: duration)
         if !problems.isEmpty {
             emit(.step("Fixing the voice-over"))
             log.step("Fixing: \(problems.joined(separator: " | "))", day: day.index)
-            request.messages = compute.prompts.narrateFix(previous: messages, answer: message.text, problems: problems)
-            (answer, message) = try await ClaudeCall.structured(NarrationResponse.self, client: compute.client, request: request, log: log, emit: emit)
+            request.turns = compute.prompts.narrateFix(previous: messages, answer: message.text, problems: problems)
+            (answer, message) = try await ModelCall.structured(NarrationResponse.self, model: compute.text, request: request, log: log, emit: emit)
             lines = NarrationCaptions.lines(from: answer)
             let structural = NarrationCaptions.problems(lines, duration: duration, pacing: false)
-            guard structural.isEmpty else { throw ClaudeError.invalid("The voice-over still breaks its contract: " + structural.joined(separator: " ")) }
+            guard structural.isEmpty else { throw ModelError.invalid("The voice-over still breaks its contract: " + structural.joined(separator: " ")) }
             let pacing = NarrationCaptions.problems(lines, duration: duration)
             if !pacing.isEmpty { log.line("kept with pacing notes: \(pacing.joined(separator: " | "))") }
         }
@@ -224,7 +249,7 @@ public enum VoiceJob {
     }
 
     /// When each piece of text arrives on the page, for the script to be timed to (none if the
-    /// page will not load: the script then keeps Claude's own times).
+    /// page will not load: the script then keeps the writer's own times).
     public static func textTimeline(_ page: URL, readAccess: URL, log: RunLog, emit: @escaping @Sendable (GenerationEvent) -> Void) async -> [Cue] {
         emit(.step("Timing the text"))
         do {
@@ -232,7 +257,7 @@ public enum VoiceJob {
             log.line("on screen: \(cues.count) pieces of text")
             return cues
         } catch {
-            log.line("the page's text could not be timed (\(error)); the voice keeps Claude's times")
+            log.line("the page's text could not be timed (\(error)); the voice keeps the writer's times")
             return []
         }
     }
@@ -246,24 +271,24 @@ public enum VoiceJob {
         return warp
     }
 
-    /// The lines spoken; lines too long even at 1.15× shortened by Claude once and spoken again.
+    /// The lines spoken; lines too long even at 1.15× shortened by the writer once and spoken again.
     /// Writes voice/<code>/script.json.
     public static func record(_ lines: [NarrationLine], language: Language, selection: VoiceSelection, existing: [NarrationLine],
-                              assetPaths a: AssetPaths, paths: CampaignPaths, client: ElevenLabsClient, compute: AdverbCompute,
+                              assetPaths a: AssetPaths, paths: CampaignPaths, voice: any SpeechSynthesizer, compute: AdverbCompute,
                               log: RunLog, emit: @escaping @Sendable (GenerationEvent) -> Void) async throws -> [NarrationLine] {
         let step = language == .english ? "Recording the voice-over" : "Recording \(language.title)"
         emit(.step(step))
         log.step(step)
         var result = try await VoiceSynth.synthesize(lines, language: language, selection: selection, existing: existing, assetPaths: a,
-                                                     paths: paths, client: client, log: log, emit: emit)
+                                                     paths: paths, voice: voice, log: log, emit: emit)
         if !result.long.isEmpty {
             let label = "Shortening \(result.long.count) \(result.long.count == 1 ? "line" : "lines")"
             emit(.step(label))
             log.step(label)
-            let request = ClaudeRequest(system: compute.prompts.system,
-                                        messages: compute.prompts.narrateShorten(lines: result.lines, long: result.long, language: language),
-                                        schema: Schemas.narration, maxTokens: 16_000)
-            let (answer, _) = try await ClaudeCall.structured(NarrationResponse.self, client: compute.client, request: request, log: log, emit: emit)
+            let request = ModelRequest(system: compute.prompts.system,
+                                       turns: compute.prompts.narrateShorten(lines: result.lines, long: result.long, language: language),
+                                       format: Schemas.narrationFormat, maxTokens: 4_096, temperature: 0.5, label: "shorten")
+            let (answer, _) = try await ModelCall.structured(NarrationResponse.self, model: compute.text, request: request, log: log, emit: emit)
             let shorter = answer.lines.sorted { $0.at < $1.at }
             if shorter.count == result.lines.count {
                 let long = Set(result.long.map(\.index))
@@ -277,13 +302,13 @@ public enum VoiceJob {
                 }
                 emit(.step(step))
                 result = try await VoiceSynth.synthesize(revised, language: language, selection: selection, existing: result.lines,
-                                                         assetPaths: a, paths: paths, client: client, log: log, emit: emit)
+                                                         assetPaths: a, paths: paths, voice: voice, log: log, emit: emit)
             } else {
                 log.line("the shortened script had \(shorter.count) lines, not \(result.lines.count); kept the first")
             }
             for l in result.long { log.line(String(format: "line %d runs %.2f s for a %.2f s window; it runs into the next", l.index, l.spoken, l.window)) }
         }
-        let script = NarrationScript(language: language, voiceID: selection.voiceID, modelID: selection.modelID, lines: result.lines)
+        let script = NarrationScript(language: language, voiceID: selection.voiceID, packID: selection.packID, lines: result.lines)
         try JSONCoding.write(script, to: a.script(language))
         return result.lines
     }
@@ -296,17 +321,18 @@ public enum VoiceJob {
         log.step(step, day: day.index)
         let digest = try compute.digest(project, paths: paths)
         let messages = compute.prompts.translate(digest: digest.text, lines: english, language: language, day: day, project: project)
-        var request = ClaudeRequest(system: compute.prompts.system, messages: messages, schema: Schemas.narration, maxTokens: 16_000)
-        var (answer, message) = try await ClaudeCall.structured(NarrationResponse.self, client: compute.client, request: request, log: log, emit: emit)
+        var request = ModelRequest(system: compute.prompts.system, turns: messages, format: Schemas.narrationFormat, maxTokens: 4_096,
+                                   temperature: 0.4, label: "translate \(language.code)")
+        var (answer, message) = try await ModelCall.structured(NarrationResponse.self, model: compute.text, request: request, log: log, emit: emit)
         var lines = NarrationCaptions.translated(answer, from: english)
         if lines == nil || lines!.contains(where: { $0.text.isEmpty }) {
-            request.messages = compute.prompts.narrateFix(previous: messages, answer: message.text,
-                                                          problems: ["Return exactly \(english.count) lines, one per English line, none empty, same at and until."])
-            (answer, message) = try await ClaudeCall.structured(NarrationResponse.self, client: compute.client, request: request, log: log, emit: emit)
+            request.turns = compute.prompts.narrateFix(previous: messages, answer: message.text,
+                                                       problems: ["Return exactly \(english.count) lines, one per English line, none empty, same at and until."])
+            (answer, message) = try await ModelCall.structured(NarrationResponse.self, model: compute.text, request: request, log: log, emit: emit)
             lines = NarrationCaptions.translated(answer, from: english)
         }
         guard let lines, !lines.contains(where: { $0.text.isEmpty }) else {
-            throw ClaudeError.invalid("The \(language.title) translation did not keep the English lines.")
+            throw ModelError.invalid("The \(language.title) translation did not keep the English lines.")
         }
         for line in lines { log.line(String(format: "%5.2f  %@", line.at, line.text)) }
         return lines

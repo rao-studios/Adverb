@@ -2,7 +2,7 @@
 //  AdverbFields.swift
 //  Adverb
 //
-//  WHAT: The one-line fields, in pearl chrome: plain, secret (the API key), and multi-line.
+//  WHAT: The one-line fields, in pearl chrome: plain, secret, and multi-line.
 //
 
 import AppKit

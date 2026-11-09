@@ -3,7 +3,7 @@
 //  AdverbCore
 //
 //  WHAT: Who an asset is for: the kicker it opens with, the end card it closes on, and the
-//        sites Claude may read before it writes (rao-motion-assets §2 end-card defaults, §3 rule 1).
+//        sites the writer is told of before it writes (rao-motion-assets §2 end-card defaults, §3 rule 1).
 //
 
 import Foundation

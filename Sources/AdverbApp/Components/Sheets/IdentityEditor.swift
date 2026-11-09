@@ -3,7 +3,7 @@
 //  Adverb
 //
 //  WHAT: An app's identity, as the assets use it: the kicker they open with, the end card they close
-//        on, the sites Claude may read. Presets for Rao's apps; every field editable.
+//        on, the sites the writer is told of. Presets for Rao's apps; every field editable.
 //
 
 import AdverbCore

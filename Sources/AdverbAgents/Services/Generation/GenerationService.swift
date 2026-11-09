@@ -2,7 +2,7 @@
 //  GenerationService.swift
 //  AdverbAgents
 //
-//  WHAT: Claude's work, as Granite state: every run in flight or just ended (plan, build, beatmap)
+//  WHAT: The models' work on this Mac, as Granite state: every run in flight or just ended (plan, build, beatmap)
 //        with its step, progress, thinking and cost; and the agents that do the work.
 //  OUT:  GenerationService+Center, Reducers/GenerationService.Set, Ops/GenerationOps
 //  PIN:  Craft's shape. Granite owns the state; the agents' runs own the compute and never touch

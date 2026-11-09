@@ -2,7 +2,7 @@
 //  AssetFinisher.swift
 //  AdverbRender
 //
-//  WHAT: The part of building an asset that is not Claude's: from a page on disk to stills, the
+//  WHAT: The part of building an asset that is not the writer's: from a page on disk to stills, the
 //        portrait and landscape MP4s, closed captions for each (WebVTT and SRT, from what the
 //        render showed), the descriptions track, the transcript, the accessibility checks and the
 //        contact sheet. A beatmapped re-cut runs the same steps with a song and a time warp. A
@@ -40,7 +40,7 @@ public struct FinishInput: Sendable {
     /// The voice-over to mix in, its clips recorded.
     public var narration: NarrationInput?
     /// Original page time → video time, for placing the narration. A warp render uses its warp;
-    /// a Claude re-time renders without one but has moved the scenes, so it says so here.
+    /// a writer's re-time renders without one but has moved the scenes, so it says so here.
     public var placement: TimeWarp?
 
     public init(paths: CampaignPaths, assetPaths: AssetPaths, readAccess: URL, day: CampaignDay, html: String, notes: AssetNotes,

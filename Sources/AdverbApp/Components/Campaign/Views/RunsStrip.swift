@@ -3,8 +3,8 @@
 //  Adverb
 //
 //  WHAT: The runs working on this campaign, along the window's foot: what each is doing, how far,
-//        what Claude is thinking about, what it has cost, and Stop. Ended runs stay until cleared,
-//        with why a failed one failed.
+//        what the model is thinking or writing right now, how much it has read and written and how
+//        long it has taken, and Stop. Ended runs stay until cleared, with why a failed one failed.
 //
 
 import AdverbAgents
@@ -48,14 +48,13 @@ struct RunsStrip: View {
         let active = runs.filter { $0.phase == .running }.count
         var parts = ["\(active) running"]
         if !usage.isEmpty {
-            parts.append("\((usage.input + usage.cacheRead + usage.cacheWrite).formatted()) in · \(usage.output.formatted()) out")
-            parts.append(String(format: "%.0f%% from cache", usage.cacheHitRate * 100))
-            parts.append(String(format: "≈ $%.2f", usage.estimatedUSD(model: model)))
+            parts.append("\((usage.input + usage.cacheRead).formatted()) read · \(usage.output.formatted()) written")
+            if usage.cacheRead > 0 { parts.append(String(format: "%.0f%% from cache", usage.cacheHitRate * 100)) }
+            if usage.tokensPerSecond > 0 { parts.append(String(format: "%.1f tok/s", usage.tokensPerSecond)) }
         }
         let voice = runs.compactMap(\.voice).reduce(VoiceUsage()) { $0 + $1 }
-        if !voice.isEmpty {
-            parts.append(String(format: "%@ characters voiced ≈ $%.2f", voice.characters.formatted(), voice.estimatedUSD()))
-        }
+        if !voice.isEmpty { parts.append(String(format: "%.0f s of speech", voice.seconds)) }
+        parts.append(ModelInfo.shortName(model))
         return parts.joined(separator: " · ")
     }
 
@@ -67,8 +66,11 @@ struct RunsStrip: View {
                 Text(run.step).adverbType(.caption).foregroundStyle(Color.adverbInkDim).lineLimit(1)
                 if run.phase == .running { AdverbMeter(fraction: run.progress).frame(width: 90) }
                 Spacer(minLength: .layer2)
-                if !run.activity.isEmpty, run.phase == .running {
-                    Text(lastLine(run.activity)).adverbType(.caption).foregroundStyle(Color.adverbInkMuted).lineLimit(1).truncationMode(.head)
+                if run.phase == .running, !(run.writing.isEmpty && run.activity.isEmpty) {
+                    // What the model is writing now (a page, line by line), else what it is thinking.
+                    Text(lastLine(run.writing.isEmpty ? run.activity : run.writing))
+                        .adverbType(run.writing.isEmpty ? .caption : .codeSmall).foregroundStyle(Color.adverbInkMuted)
+                        .lineLimit(1).truncationMode(.head)
                         .frame(maxWidth: 360, alignment: .trailing)
                 }
                 if let message = run.message, run.phase != .running {
@@ -99,7 +101,8 @@ struct RunsStrip: View {
         case "Plan": return "Plan"
         case "Beatmap": return "Day \(run.dayIndex ?? 0) · music"
         case "Voice": return "Day \(run.dayIndex ?? 0) · voice"
-        default: return "Day \(run.dayIndex ?? 0)"
+        case "Render": return "Day \(run.dayIndex ?? 0) · render"
+        default: return "Day \(run.dayIndex ?? 0) · sheet"
         }
     }
 

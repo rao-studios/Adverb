@@ -4,7 +4,7 @@
 //
 //  WHAT: Re-cuts a day's asset to a song. The grid is re-read on the segment used (in-point to
 //        in-point + DUR) and corrected by the person's octave and downbeat nudge; then the page
-//        meets the beat — warped (scene starts to downbeats, no Claude call) or re-timed by Claude
+//        meets the beat — warped (scene starts to downbeats, no model call) or re-timed by the writer
 //        (validated; a failed re-time falls back to the warp) — and both orientations render with
 //        the song under them (and the voice-over over it, ducking it, with every language re-mixed).
 //        The silent originals are kept for a revert.
@@ -38,7 +38,7 @@ public enum RetimeJob {
                            emit: @escaping @Sendable (GenerationEvent) -> Void) async throws {
         let project = try compute.project(projectSlug)
         let paths = compute.paths(project, campaignID)
-        let log = RunLog(paths: paths, campaignID: campaignID, kind: .beatmap(day: dayIndex), model: compute.settings.model)
+        let log = RunLog(paths: paths, campaignID: campaignID, kind: .beatmap(day: dayIndex), model: request.mode == .retime ? compute.text.info.id : "")
         do {
             let campaign = try await CampaignLedger.shared.read(paths)
             guard let day = campaign.day(dayIndex), let asset = day.asset else { throw CampaignError.noDay(dayIndex) }
@@ -70,19 +70,19 @@ public enum RetimeJob {
             var placement = warp
             var mode = request.mode
             if voiceLines != nil, mode == .retime {
-                log.line("narrated: the voice leads the cut, so its lines land on the beat (warp) instead of a Claude re-time")
+                log.line("narrated: the voice leads the cut, so its lines land on the beat (warp) instead of a re-time")
                 emit(.log("A narrated day follows its voice: its lines and their text land on the beat."))
                 mode = .warp
             }
             var descriptions = asset.pageDescriptions
 
             if mode == .retime {
-                emit(.step("Re-timing with Claude"))
-                log.step("Re-timing with Claude", day: dayIndex)
-                let r = ClaudeRequest(system: compute.prompts.system, messages: compute.prompts.retime(html: base, grid: grid, song: request.title),
-                                      schema: Schemas.retime, maxTokens: 64_000)
+                emit(.step("Re-timing the page"))
+                log.step("Re-timing with \(compute.text.info.title)", day: dayIndex)
+                let r = ModelRequest(system: compute.prompts.system, turns: compute.prompts.retime(html: base, grid: grid, song: request.title),
+                                     format: Schemas.retimeFormat, maxTokens: 24_000, temperature: 0.2, label: "re-time")
                 do {
-                    let (retimed, _) = try await ClaudeCall.structured(RetimeResponse.self, client: compute.client, request: r, log: log, emit: emit)
+                    let (retimed, _) = try await ModelCall.structured(RetimeResponse.self, model: compute.text, request: r, log: log, emit: emit)
                     let problems = RetimeValidator.problems(original: base, retimed: retimed.html, duration: day.topic.duration, grid: grid, cues: retimed.cues)
                     if problems.isEmpty {
                         let newScenes = PageVerifier.scenes(retimed.html)
@@ -98,10 +98,12 @@ public enum RetimeJob {
                             : nil
                     } else {
                         log.line("re-time kept out: \(problems.joined(separator: " | ")); warping instead")
-                        emit(.log("Claude's re-time changed more than timing; warped instead."))
+                        emit(.log("The re-time changed more than timing; warped instead."))
                         mode = .warp
                     }
-                } catch let error as ClaudeError {
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
                     log.line("re-time failed: \(error); warping instead")
                     mode = .warp
                 }

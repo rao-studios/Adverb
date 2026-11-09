@@ -35,7 +35,7 @@ struct VoiceCard: View {
                 if let vo = asset.voiceOver {
                     narrated(vo)
                 } else {
-                    Text("Silent. A voice-over has Claude write a short narration for this asset, timed to its text, and an ElevenLabs voice speak each line as its words appear on screen.")
+                    Text("Silent. A voice-over has the writer write a short narration for this asset, timed to its text, and a voice on this Mac speak each line as its words appear on screen.")
                         .adverbType(.readingSmall).foregroundStyle(Color.adverbInkDim)
                     Button("Add a voice-over…", action: choose).buttonStyle(.adverb).disabled(busy)
                 }
@@ -50,7 +50,7 @@ struct VoiceCard: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: .hairline) {
                 Text(vo.voiceName).adverbType(.heading)
-                Text("\(Self.modelTitle(vo.modelID)) · \(english.lines.count) lines · \(english.characters.formatted()) characters")
+                Text("\(Self.packTitle(vo.packID)) · \(english.lines.count) lines · \(english.characters.formatted()) characters")
                     .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
             }
             Spacer()
@@ -131,7 +131,8 @@ struct VoiceCard: View {
         }
     }
 
-    static func modelTitle(_ id: String) -> String {
-        AdverbSettings.voiceModels.first { $0.id == id }.map { String($0.title.split(separator: "·").first ?? "").trimmingCharacters(in: .whitespaces) } ?? id
+    static func packTitle(_ id: String) -> String {
+        if id.isEmpty { return "Recorded before this Mac's voice" }
+        return AdverbRuntimeRoot.shared.voice.state.pack(id)?.title ?? ModelCatalog.speechSpec(pack: id)?.title ?? id
     }
 }

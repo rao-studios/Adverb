@@ -11,8 +11,25 @@
 import Foundation
 
 public enum PostStatus: String, Codable, Sendable, CaseIterable, Hashable {
-    case planned, rendered, posted, skipped
-    public var title: String { rawValue.capitalized }
+    /// Planned, nothing written yet.
+    case planned
+    /// Written to a contact sheet (page, voice-over, stills): waiting for a look.
+    case sheeted
+    /// The sheet was approved: ready to render.
+    case approved
+    /// Rendered to video in both orientations.
+    case rendered
+    case posted, skipped
+
+    public var title: String {
+        switch self {
+        case .sheeted: "Sheet"
+        default: rawValue.capitalized
+        }
+    }
+
+    /// The sheet exists and nothing after it: what Approve and Redo act on.
+    public var awaitsReview: Bool { self == .sheeted }
 }
 
 public struct PostTarget: Codable, Sendable, Equatable, Hashable {
@@ -47,6 +64,10 @@ public struct CampaignDay: Codable, Sendable, Equatable, Identifiable, Hashable 
     public var asset: Asset?
     /// Why the last build of this day stopped, when it did.
     public var problem: String?
+    /// When the person approved the sheet.
+    public var approvedAt: Date?
+    /// What the person asked to change when they sent the sheet back.
+    public var redoNote: String?
 
     public init(id: UUID = UUID(), index: Int, date: String, postAt: Date, postTimeLocal: String, timeReason: String,
                 targets: [PostTarget], topic: TopicBrief, caption: String, hashtags: [String], hook: String, cta: String,

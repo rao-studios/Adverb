@@ -2,7 +2,7 @@
 //  Campaign.swift
 //  AdverbCore
 //
-//  WHAT: A month of posts for one project: the brief it was made from, the plan Claude wrote, and
+//  WHAT: A month of posts for one project: the brief it was made from, the plan the model wrote, and
 //        every day with its asset. campaign.json is the single source of truth for all of it.
 //  PIN:  One live campaign per project (CampaignStore enforces it). Draft is where a campaign is
 //        planned and built; live is the month being posted; archived is a month that is over.
@@ -45,7 +45,10 @@ public struct Campaign: Codable, Sendable, Equatable, Identifiable, Hashable {
         if let i = days.firstIndex(where: { $0.index == day.index }) { days[i] = day } else { days.append(day); days.sort { $0.index < $1.index } }
     }
 
-    public var builtCount: Int { days.filter { $0.asset != nil }.count }
+    /// Days rendered to video.
+    public var builtCount: Int { days.filter { !($0.asset?.renders.isEmpty ?? true) }.count }
+    /// Days at their contact sheet, waiting for a look or to render.
+    public var sheetCount: Int { days.filter { ($0.asset?.renders.isEmpty ?? false) && $0.asset?.sheetPath != nil }.count }
     public var postedCount: Int { days.filter { $0.status == .posted }.count }
     public var isPlanned: Bool { plan != nil && !days.isEmpty }
 }

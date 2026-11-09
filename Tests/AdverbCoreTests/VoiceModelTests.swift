@@ -47,7 +47,7 @@ import Testing
         let decoded = try JSONCoding.decoder().decode(CampaignBrief.self, from: JSONSerialization.data(withJSONObject: object))
         #expect(decoded.voiceOver == nil)
         var voiced = brief
-        voiced.voiceOver = VoiceSelection(voiceID: "v", voiceName: "Rachel", modelID: "eleven_v3")
+        voiced.voiceOver = VoiceSelection(voiceID: "bf_alice", voiceName: "Alice", packID: ModelCatalog.kokoroPackID)
         #expect(try JSONCoding.decoder().decode(CampaignBrief.self, from: JSONCoding.lineEncoder().encode(voiced)) == voiced)
     }
 
@@ -72,7 +72,7 @@ import Testing
         #expect(a.vtt(.landscape, .spanish).lastPathComponent == "03-highlight-landscape.es.vtt")
         #expect(a.srt(.landscape, .english) == a.srt(.landscape))
         #expect(a.transcript(.french).lastPathComponent == "03-highlight.fr.transcript.md")
-        #expect(a.clip(.english, 3).path.hasSuffix("03-highlight/voice/en/line-03.mp3"))
+        #expect(a.clip(.english, 3).path.hasSuffix("03-highlight/voice/en/line-03.wav"))
         #expect(a.script(.japanese).path.hasSuffix("voice/ja/script.json"))
         #expect(a.screenVTT(.portrait).lastPathComponent == "03-highlight-portrait.screen.vtt")
     }
@@ -84,12 +84,48 @@ import Testing
         let paths = CampaignPaths(root: Fixture.temp())
         let log = RunLog(paths: paths, campaignID: UUID(), kind: .languages(day: 4, [.german]), model: "m")
         #expect(log.url.lastPathComponent.hasSuffix("-languages-day4.log"))
-        log.add(voice: VoiceUsage(characters: 120, requests: 2))
-        log.add(voice: VoiceUsage(characters: 80, requests: 1))
+        log.add(voice: VoiceUsage(characters: 120, requests: 2, seconds: 6.5, packID: "p"))
+        log.add(voice: VoiceUsage(characters: 80, requests: 1, seconds: 3.5, packID: "p"))
         #expect(log.voice?.characters == 200 && log.voice?.requests == 3)
         log.finish(.succeeded)
         let run = try? JSONCoding.read(GenerationRun.self, from: log.jsonURL)
         #expect(run?.voice?.characters == 200)
-        #expect((try? String(contentsOf: log.url, encoding: .utf8))?.contains("voice: 200 characters in 3 requests") == true)
+        #expect(run?.voice?.seconds == 10)
+        #expect((try? String(contentsOf: log.url, encoding: .utf8))?.contains("voice: 3 lines, 10.0 s of speech, 200 characters") == true)
+    }
+
+    /// A campaign narrated by the ElevenLabs build still opens: its voice reads as a name in the
+    /// default pack, its voice-over keeps its clips and an empty pack (spoken again when next voiced).
+    @Test func elevenLabsSelectionsStillDecode() throws {
+        let selection = try JSONDecoder().decode(VoiceSelection.self, from: Data(#"""
+        {"voiceID":"21m00Tcm4TlvDq8ikWAM","voiceName":"Rachel","modelID":"eleven_multilingual_v2",
+         "settings":{"stability":0.5,"similarity_boost":0.75,"style":0,"use_speaker_boost":true,"speed":1}}
+        """#.utf8))
+        #expect(selection.voiceName == "Rachel" && selection.packID == VoiceSelection.defaultPack && selection.speed == 1)
+        let vo = try JSONCoding.decoder().decode(VoiceOver.self, from: Data(#"""
+        {"voiceID":"21m00Tcm4TlvDq8ikWAM","voiceName":"Rachel","modelID":"eleven_v3","settings":{},
+         "english":{"language":"en","scriptPath":"s","lines":[],"renders":[],"captions":{},"characters":0,
+                    "generatedAt":"2026-10-28T12:00:00Z","stale":false},
+         "languages":[],"appliedAt":"2026-10-28T12:00:00Z"}
+        """#.utf8))
+        #expect(vo.packID.isEmpty && vo.voiceName == "Rachel")
+        let script = try JSONCoding.decoder().decode(NarrationScript.self, from: Data(#"""
+        {"language":"en","voiceID":"v","modelID":"eleven_v3","lines":[],"generatedAt":"2026-10-28T12:00:00Z"}
+        """#.utf8))
+        #expect(script.packID.isEmpty)
+    }
+
+    /// Settings saved by the Claude and ElevenLabs build read with their own fields dropped.
+    @Test func oldSettingsDecode() throws {
+        let old = try JSONDecoder().decode(AdverbSettings.self, from: Data(#"""
+        {"version":1,"workdir":"/Volumes/T9/rao/marketing","model":"claude-opus-5-5","effort":"high","fallbacks":true,"webFetch":true,
+         "reviewPass":true,"buildConcurrency":2,"renderer":"native","supersample":false,"bitrateMbps":12,
+         "voiceOverDefault":true,"voiceID":"21m00Tcm4TlvDq8ikWAM","voiceName":"Rachel","voiceModel":"eleven_multilingual_v2","voiceLanguages":["de"]}
+        """#.utf8))
+        #expect(old.workdir == "/Volumes/T9/rao/marketing" && old.reviewPass && old.voiceOverDefault)
+        #expect(old.textModel == nil && old.sheetGate && old.thinking)
+        #expect(old.voiceSelection == nil, "an ElevenLabs voice names no voice here")
+        #expect(old.voiceLanguages == [.german])
+        #expect(old.textModelID == ModelCatalog.recommended().text.id)
     }
 }

@@ -3,18 +3,18 @@
 //  AdverbCore
 //
 //  WHAT: The song an asset was re-cut to and how: where it starts in the song, the grid used, how
-//        the page met the beat (warped, or re-timed by Claude), fade and gain.
+//        the page met the beat (warped, or re-timed by the writer), fade and gain.
 //
 
 import Foundation
 
 public enum BeatmapMode: String, Codable, Sendable, CaseIterable, Hashable {
-    /// Scene boundaries move to downbeats by a time warp, and the kit adds beat accents. No Claude call.
+    /// Scene boundaries move to downbeats by a time warp, and the kit adds beat accents. No model call.
     case warp
-    /// Claude rewrites the page's timing against the beat list; validated before it renders.
+    /// The writer rewrites the page's timing against the beat list; validated before it renders.
     case retime
 
-    public var title: String { self == .warp ? "Warp to the beat" : "Re-time with Claude" }
+    public var title: String { self == .warp ? "Warp to the beat" : "Re-time with the writer" }
 }
 
 public struct MusicChoice: Codable, Sendable, Equatable, Hashable {

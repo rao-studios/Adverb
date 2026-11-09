@@ -2,9 +2,9 @@
 //  VoicePage.swift
 //  Adverb
 //
-//  WHAT: Settings › Voice: the ElevenLabs key and what is left of the month's characters, whether
-//        new campaigns are narrated, the voice and model they start with, and the languages to make
-//        once a day's English is confirmed.
+//  WHAT: Settings › Voice: the voice packs on this Mac (Kokoro, downloaded from Rao Studios), whether
+//        new campaigns are narrated and in which voice, and the languages to make once a day's
+//        English is confirmed (those a pack speaks).
 //
 
 import AdverbCore
@@ -13,59 +13,35 @@ import SwiftUI
 
 struct VoicePage: View {
     let state: ConfigService.Center.State
-    @Binding var keyDraft: String
+    let models: ModelService.Center.State
+    let voices: VoiceService.Center.State
     var root: AdverbRuntimeRoot { AdverbRuntimeRoot.shared }
-
-    /// "12,340 of 100,000 characters used this period, resets Nov 12".
-    static func quotaLine(_ q: VoiceQuota) -> String {
-        var line = "\(q.used.formatted()) of \(q.limit.formatted()) characters used this period"
-        if let reset = q.resetsAt { line += ", resets \(reset.formatted(.dateTime.month(.abbreviated).day()))" }
-        if let tier = q.tier, !tier.isEmpty { line += " · \(tier.capitalized) plan" }
-        return line
-    }
 
     var body: some View {
         AdverbCard {
             VStack(alignment: .leading, spacing: .layer2) {
-                SectionLabel("ElevenLabs key")
-                if let source = state.voiceKeySource {
-                    HStack {
-                        Text(state.voiceKeyMasked ?? "••••").adverbType(.identifier)
-                        Text("from \(source.label(env: KeyResolver.elevenLabsEnv))").adverbType(.caption).foregroundStyle(Color.adverbInkDim)
-                        Spacer()
-                        switch state.voiceKeyChecked {
-                        case true?: Label("Works", systemImage: "checkmark.circle").adverbType(.caption).foregroundStyle(Color.adverbSuccess)
-                        case false?: Label("Refused", systemImage: "xmark.circle").adverbType(.caption).foregroundStyle(Color.adverbError)
-                        case nil: EmptyView()
-                        }
-                    }
-                    if let quota = state.voiceQuota { Text(Self.quotaLine(quota)).adverbType(.caption).foregroundStyle(Color.adverbInkSoft) }
-                }
-                HStack {
-                    AdverbSecureField(placeholder: state.hasVoiceKey ? "Replace with a new key" : "ElevenLabs API key", text: $keyDraft)
-                    Button("Save") { let k = keyDraft; Task { if await root.saveVoiceKey(k) { keyDraft = "" } } }
-                        .buttonStyle(.adverb).disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-                HStack {
-                    Button("Test") { Task { await root.testVoiceKey() } }.buttonStyle(.adverbQuiet).disabled(!state.hasVoiceKey)
-                    if state.voiceKeySource == .keychain { Button("Forget") { Task { await root.forgetVoiceKey() } }.buttonStyle(.adverbLink) }
-                }
-                Text("Optional: without it, assets stay silent as before. Kept in your login Keychain (nyc.rao.adverb, ELEVENLABS_API_KEY); ELEVENLABS_API_KEY in the environment works too. Test reads your subscription, which costs nothing.")
+                SectionLabel("Voice packs")
+                Text("Each voice-over is spoken on this Mac. A pack is the voice model and the voices it speaks; both speak English today, built to take more languages.")
                     .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
+                ForEach(ModelCatalog.speech, id: \.id) { spec in
+                    ModelRow(spec: spec, state: models, canRemove: true)
+                }
             }
         }
         AdverbCard {
             VStack(alignment: .leading, spacing: .layer3) {
                 SectionLabel("Narration")
                 Toggle("Narrate new campaigns by default", isOn: binding(\.voiceOverDefault))
-                Picker("Model", selection: binding(\.voiceModel)) { ForEach(AdverbSettings.voiceModels, id: \.id) { Text($0.title).tag($0.id) } }
-                FieldRow(label: "Default voice", value: state.settings.voiceName ?? "Not chosen yet", mono: false)
-                if state.hasVoiceKey {
-                    VoicePicker(selectedID: state.settings.voiceID) { v in root.update { $0.voiceID = v.id; $0.voiceName = v.name } }
+                FieldRow(label: "Default voice", value: state.settings.voiceName.map { name in
+                    "\(name) · \(voices.pack(state.settings.voicePack ?? "")?.title ?? "")" } ?? "Not chosen yet", mono: false)
+                if voices.packs.isEmpty {
+                    Text("Download a voice pack above to hear and choose the voices.").adverbType(.caption).foregroundStyle(Color.adverbInkDim)
                 } else {
-                    Text("Add a key above to list and hear the voices.").adverbType(.caption).foregroundStyle(Color.adverbInkDim)
+                    VoicePicker(selectedPack: state.settings.voicePack, selectedID: state.settings.voiceID) { v in
+                        root.update { $0.voiceID = v.id; $0.voiceName = v.name; $0.voicePack = v.packID }
+                    }
                 }
-                Text("Claude writes a short narration for each asset, timed to its text. The page plays at the voice's pace, so each line's words appear on screen as it is said; with a song, the lines land on the beat. The captions carry what it says. ElevenLabs bills each character spoken.")
+                Text("The writer writes a short narration for each asset, timed to its text. The page plays at the voice's pace, so each line's words appear on screen as it is said; with a song, the lines land on the beat. The captions carry what it says.")
                     .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
             }
             .adverbType(.label)
@@ -73,13 +49,17 @@ struct VoicePage: View {
         AdverbCard {
             VStack(alignment: .leading, spacing: .layer3) {
                 SectionLabel("Languages")
-                LanguageChips(selected: state.settings.voiceLanguages) { languages in root.update { $0.voiceLanguages = languages } }
-                Text(state.settings.voiceLanguages.isEmpty
-                     ? "None chosen. After you confirm a day's English, these are the languages Generate makes; the choice is kept."
-                     : "\(state.settings.voiceLanguages.map(\.title).joined(separator: ", ")). Kept for every day: after you confirm a day's English, Generate makes these.")
+                let speakable = Swift.Set(voices.packs.flatMap(\.languages))
+                LanguageChips(selected: state.settings.voiceLanguages, speakable: speakable) { languages in root.update { $0.voiceLanguages = languages } }
+                Text(speakable.subtracting([.english]).isEmpty
+                     ? "No voice on this Mac speaks another language yet. When a pack for one is added, its language can be chosen here; the writer already translates."
+                     : (state.settings.voiceLanguages.isEmpty
+                        ? "None chosen. After you confirm a day's English, these are the languages Generate makes; the choice is kept."
+                        : "\(state.settings.voiceLanguages.map(\.title).joined(separator: ", ")). Kept for every day: after you confirm a day's English, Generate makes these."))
                     .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
             }
         }
+        .task { await root.loadVoices() }
     }
 
     private func binding<T>(_ path: WritableKeyPath<AdverbSettings, T>) -> Binding<T> {

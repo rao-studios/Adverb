@@ -2,8 +2,8 @@
 //  VoiceService.swift
 //  AdverbRuntime
 //
-//  WHAT: ElevenLabs' voices as Granite state: the list the pickers show, whether it is loading,
-//        which voice is previewing, and which previews are already on this Mac.
+//  WHAT: The voices on this Mac as Granite state: the packs and their voices the pickers show,
+//        which voice is being previewed (or spoken for its preview), and which previews are made.
 //  OUT:  VoiceService+Center, Reducers/VoiceService.Set, Ops/VoiceOps
 //
 

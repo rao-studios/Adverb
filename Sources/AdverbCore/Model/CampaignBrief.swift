@@ -24,7 +24,7 @@ public struct CampaignBrief: Codable, Sendable, Equatable, Hashable {
     public var apps: [String]
     public var goals: String
     public var notes: String
-    /// Narrate every asset with this ElevenLabs voice; nil keeps them silent.
+    /// Narrate every asset with this voice; nil keeps them silent.
     public var voiceOver: VoiceSelection?
 
     public init(startDate: String, lengthDays: Int = 30, timeZone: String = TimeZone.current.identifier,

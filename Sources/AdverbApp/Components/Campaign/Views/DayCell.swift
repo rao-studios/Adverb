@@ -97,6 +97,9 @@ struct DayCell: View {
         case .posted: Image(systemName: "checkmark.circle.fill").font(.adverbGlyph(AdverbGlyph.caption)).foregroundStyle(Color.adverbGoldHi)
         case .skipped: Image(systemName: "minus.circle").font(.adverbGlyph(AdverbGlyph.caption))
         case .rendered: StatusDot(color: .adverbGoldHi)
+        case .approved: StatusDot(color: .adverbGoldHi, hollow: true)
+        case .sheeted: Image(systemName: "eye.circle").font(.adverbGlyph(AdverbGlyph.caption)).foregroundStyle(Color.adverbGoldHi)
+            .help("A contact sheet is waiting for a look")
         case .planned: StatusDot(color: .adverbInkMuted, hollow: true)
         }
     }

@@ -7,16 +7,23 @@
 //  Copyright © 2026 Rao Studios LLC.
 //
 // WHAT: One SwiftPM package. Targets under Sources/, layered by name.
-// OUT:  AdverbCore → AdverbAgents / AdverbRender → AdverbRuntime → AdverbApp (Adverb.app)
-// PIN:  AdverbCore names nothing: Foundation, the models, the stores, the Claude client, the
-//       prompts. AdverbAgents names Granite and holds Craft's @Agent engine (Granite/, lifted
-//       whole: Granite, Foundation and Combine only) and Adverb's agents. AdverbRender names
-//       WebKit, AVFoundation and Accelerate and nothing of Granite: the renderer, the encoder, the
-//       beat tracker, the captions. AdverbRuntime is the composition: services, the root.
+// OUT:  AdverbCore → AdverbRender / AdverbModels / AdverbVoice / AdverbAgents → AdverbRuntime → AdverbApp (Adverb.app)
+// PIN:  AdverbCore names nothing: Foundation, the models, the stores, the prompts, and the seams every
+//       generative step is made through (LanguageModel, SpeechProvider). AdverbModels names Frigate (MLX)
+//       and nothing of Granite: the on-device language and vision models. AdverbVoice names Core ML and
+//       nothing of Granite: Kokoro, the on-device voice. AdverbRender names WebKit, AVFoundation and
+//       Accelerate and nothing of Granite: the renderer, the encoder, the beat tracker, the captions, the
+//       sheets. AdverbAgents names Granite and holds Craft's @Agent engine (Granite/, lifted whole) and
+//       Adverb's agents, which see the models only through AdverbCore's seams. AdverbRuntime is the
+//       composition: services, the root, the models and the voice put behind the seams.
+//       NOTHING CALLS A REMOTE API. The only network use is downloading a pinned model from
+//       huggingface.co/rao-studios (AdverbModels, AdverbVoice).
 //       EVERY DEPENDENCY IS A URL, NEVER A PATH (Craft's rule).
 //       Platforms are "26.0" (string), as Support/Info.plist says; make-app.sh checks they agree.
-//       Swift 5 language mode everywhere, as Craft and Ambient build: the copied engine and
-//       AVFoundation's non-Sendable writers compile unchanged.
+//       Swift 5 language mode everywhere, as Craft and Ambient build: the copied engine, Frigate's MLX
+//       types and AVFoundation's non-Sendable writers compile unchanged.
+//       MLX needs mlx.metallib beside the running binary: Scripts/build-metallib.sh puts it there
+//       (dev.sh, test.sh and make-app.sh run it).
 
 import PackageDescription
 
@@ -28,7 +35,10 @@ let package = Package(
     products: [
         .executable(name: "Adverb", targets: ["AdverbApp"]),
         .executable(name: "adverb-render-probe", targets: ["RenderProbe"]),
+        .executable(name: "adverb-model-probe", targets: ["ModelProbe"]),
         .library(name: "AdverbCore", targets: ["AdverbCore"]),
+        .library(name: "AdverbModels", targets: ["AdverbModels"]),
+        .library(name: "AdverbVoice", targets: ["AdverbVoice"]),
         .library(name: "AdverbAgents", targets: ["AdverbAgents"]),
         .library(name: "AdverbRender", targets: ["AdverbRender"]),
         .library(name: "AdverbRuntime", targets: ["AdverbRuntime"]),
@@ -36,6 +46,8 @@ let package = Package(
     dependencies: [
         // Granite's main carries the compile hook @Agent needs (GraniteCustomEvent).
         .package(url: "https://github.com/riteshpakala/Granite.git", branch: "main"),
+        // The on-device stack: MLX, mlx-swift-lm (LLM and VLM), the Hub client and its downloader.
+        .package(url: "https://github.com/rao-studios/Frigate.git", branch: "main"),
     ],
     targets: [
         // MARK: - AdverbCore — Foundation only.
@@ -51,9 +63,34 @@ let package = Package(
             dependencies: ["AdverbCore"],
             path: "Sources/AdverbRender",
             swiftSettings: v5,
-            linkerSettings: [.linkedFramework("WebKit"), .linkedFramework("AVFoundation"), .linkedFramework("Accelerate")]
+            linkerSettings: [.linkedFramework("WebKit"), .linkedFramework("JavaScriptCore"), .linkedFramework("AVFoundation"),
+                             .linkedFramework("Accelerate")]
         ),
-        // MARK: - AdverbAgents — @Agent and the Claude agents.
+        // MARK: - AdverbModels — the on-device language and vision models (MLX, through Frigate).
+        .target(
+            name: "AdverbModels",
+            dependencies: [
+                "AdverbCore",
+                .product(name: "MLX", package: "Frigate"),
+                .product(name: "MLXLLM", package: "Frigate"),
+                .product(name: "MLXVLM", package: "Frigate"),
+                .product(name: "MLXLMCommon", package: "Frigate"),
+                .product(name: "FrigateBridge", package: "Frigate"),
+                .product(name: "FrigateHub", package: "Frigate"),
+                .product(name: "FrigateParallel", package: "Frigate"),
+            ],
+            path: "Sources/AdverbModels",
+            swiftSettings: v5
+        ),
+        // MARK: - AdverbVoice — Kokoro, the on-device voice (Core ML), lifted from Ambient.
+        .target(
+            name: "AdverbVoice",
+            dependencies: ["AdverbCore", .product(name: "FrigateHub", package: "Frigate")],
+            path: "Sources/AdverbVoice",
+            swiftSettings: v5,
+            linkerSettings: [.linkedFramework("CoreML"), .linkedFramework("AVFoundation"), .linkedFramework("Accelerate")]
+        ),
+        // MARK: - AdverbAgents — @Agent and the agents, over AdverbCore's seams.
         .target(
             name: "AdverbAgents",
             dependencies: ["AdverbCore", "AdverbRender", .product(name: "Granite", package: "Granite")],
@@ -63,7 +100,8 @@ let package = Package(
         // MARK: - AdverbRuntime — services and the root.
         .target(
             name: "AdverbRuntime",
-            dependencies: ["AdverbCore", "AdverbAgents", "AdverbRender", .product(name: "Granite", package: "Granite")],
+            dependencies: ["AdverbCore", "AdverbAgents", "AdverbRender", "AdverbModels", "AdverbVoice",
+                           .product(name: "Granite", package: "Granite")],
             path: "Sources/AdverbRuntime",
             swiftSettings: v5
         ),
@@ -91,10 +129,25 @@ let package = Package(
             path: "Sources/Probes/RenderProbe",
             swiftSettings: v5
         ),
+        // MARK: - The model probe: the generative steps headless, on a campaign on disk, timed —
+        // a plan, a day's sheet, a voice line. How models are compared against the reference sheets.
+        .executableTarget(
+            name: "ModelProbe",
+            dependencies: ["AdverbAgents", "AdverbModels", "AdverbVoice", "AdverbRender", "AdverbCore"],
+            path: "Sources/Probes/ModelProbe",
+            swiftSettings: v5
+        ),
         // MARK: - Tests (Swift Testing). Fixtures are read beside the sources, not as resources.
         .testTarget(name: "AdverbCoreTests", dependencies: ["AdverbCore"], path: "Tests/AdverbCoreTests", exclude: ["Fixtures"], swiftSettings: v5),
         .testTarget(name: "AdverbRenderTests", dependencies: ["AdverbRender", "AdverbCore"], path: "Tests/AdverbRenderTests", exclude: ["Fixtures"], swiftSettings: v5),
-        .testTarget(name: "AdverbAgentsTests", dependencies: ["AdverbAgents", "AdverbCore", .product(name: "Granite", package: "Granite")], path: "Tests/AdverbAgentsTests", swiftSettings: v5),
+        .testTarget(name: "AdverbAgentsTests", dependencies: ["AdverbAgents", "AdverbCore", "AdverbRender", .product(name: "Granite", package: "Granite")],
+                    path: "Tests/AdverbAgentsTests", swiftSettings: v5),
+        .testTarget(name: "AdverbVoiceTests", dependencies: ["AdverbVoice", "AdverbCore"], path: "Tests/AdverbVoiceTests", swiftSettings: v5),
+        .testTarget(name: "AdverbModelsTests", dependencies: ["AdverbModels", "AdverbCore",
+                                                         .product(name: "MLX", package: "Frigate"),
+                                                         .product(name: "MLXLMCommon", package: "Frigate"),
+                                                         .product(name: "FrigateParallel", package: "Frigate")],
+                    path: "Tests/AdverbModelsTests", swiftSettings: v5),
         .testTarget(name: "AdverbAppTests", dependencies: ["AdverbApp"], path: "Tests/AdverbAppTests", swiftSettings: v5),
     ]
 )

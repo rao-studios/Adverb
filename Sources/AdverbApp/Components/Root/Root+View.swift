@@ -15,7 +15,7 @@ extension Root {
             switch gate {
             case .loading:
                 ProgressView().controlSize(.small)
-            case .needsKey, .needsWorkdir, .noProjects:
+            case .needsModels, .needsWorkdir, .noProjects:
                 Onboarding(selection: selection)
             case .driveNotMounted(let volume):
                 DriveGate(title: "\(volume) is not *plugged in.*",

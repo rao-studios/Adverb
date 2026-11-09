@@ -2,18 +2,21 @@
 //  Schemas.swift
 //  AdverbCore
 //
-//  WHAT: The JSON schemas Claude's answers are held to (structured outputs): the month's plan, an
-//        asset's page, a stills review, a re-timing, a narration (written or translated).
-//  PIN:  Structured outputs want `additionalProperties: false` and every key `required` on every
-//        object, and take no length or count limits: those are checked after (PlanValidator).
+//  WHAT: The shapes the model's answers are held to: the month's plan, a page's notes and
+//        accessibility text (the trailer after the page), a contact sheet's review, a re-timing's
+//        cues (after the re-timed page), a narration (written, translated or shortened).
+//  PIN:  Objects keep the order their keys are given in (`required` lists them so): the skeleton a
+//        model is shown follows it, and a model writes the keys as shown. Counts and lengths are
+//        not in the schema; they are checked after (PlanValidator, PageVerifier, NarrationCaptions).
 //
 
 import Foundation
 
 public enum Schemas {
-    static func object(_ properties: [String: JSONValue]) -> JSONValue {
+    static func object(_ properties: KeyValuePairs<String, JSONValue>) -> JSONValue {
         ["type": "object", "additionalProperties": false,
-         "required": .array(properties.keys.sorted().map { .string($0) }), "properties": .object(properties)]
+         "required": .array(properties.map { .string($0.key) }),
+         "properties": .object(Dictionary(properties.map { ($0.key, $0.value) }, uniquingKeysWith: { a, _ in a }))]
     }
 
     static func array(_ items: JSONValue) -> JSONValue { ["type": "array", "items": items] }
@@ -51,9 +54,9 @@ public enum Schemas {
         ])
     }
 
-    public static var page: JSONValue {
+    /// What follows a page: its notes and accessibility text.
+    public static var pageTrailer: JSONValue {
         object([
-            "html": string,
             "notes": object(["summary": string, "illustrative": array(string), "softened": array(string), "sources": array(string)]),
             "a11y": object([
                 "alt_text": string,
@@ -62,16 +65,27 @@ public enum Schemas {
         ])
     }
 
+    /// A review of a contact sheet: whether it is right, and each thing to change. The eyes never
+    /// write the page; the writer changes it from these.
     public static var review: JSONValue {
-        object(["ok": boolean, "issues": array(string), "html": string])
+        object(["ok": boolean, "issues": array(string)])
     }
 
-    public static var retime: JSONValue {
-        object(["html": string, "cues": array(object(["t": number, "kind": string]))])
+    /// What follows a re-timed page: what was put on the grid.
+    public static var retimeTrailer: JSONValue {
+        object(["cues": array(object(["t": number, "kind": string]))])
     }
 
     /// A voice-over: timed lines in page time. The same shape for a translation.
     public static var narration: JSONValue {
         object(["lines": array(object(["at": number, "until": number, "text": string]))])
     }
+
+    // MARK: - Formats
+
+    public static var planFormat: AnswerFormat { .json(plan) }
+    public static var pageFormat: AnswerFormat { .document(trailer: pageTrailer, optionalPage: false) }
+    public static var reviewFormat: AnswerFormat { .json(review) }
+    public static var retimeFormat: AnswerFormat { .document(trailer: retimeTrailer, optionalPage: false) }
+    public static var narrationFormat: AnswerFormat { .json(narration) }
 }

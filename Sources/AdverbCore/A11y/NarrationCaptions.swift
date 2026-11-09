@@ -2,7 +2,7 @@
 //  NarrationCaptions.swift
 //  AdverbCore
 //
-//  WHAT: A voice-over's lines as captions and checks: Claude's answer to lines, the contract a
+//  WHAT: A voice-over's lines as captions and checks: the writer's answer to lines, the contract a
 //        script is held to (in order, inside the asset, each short enough for its window), the
 //        spoken spans in video time (each line's clip placed through the warp, its speech from the
 //        TTS timings), the caption cues made from them, and which scenes no line speaks over.
@@ -39,7 +39,7 @@ public enum NarrationCaptions {
     }
 
     /// A translation answer onto the English lines: the text is the translation's, the windows
-    /// stay the English ones (Claude was asked to keep them).
+    /// stay the English ones (the writer was asked to keep them).
     public static func translated(_ response: NarrationResponse, from english: [NarrationLine]) -> [NarrationLine]? {
         let answer = response.lines.sorted { $0.at < $1.at }
         guard answer.count == english.count else { return nil }
@@ -48,7 +48,7 @@ public enum NarrationCaptions {
         }
     }
 
-    /// What breaks the script's contract, said so Claude can fix it.
+    /// What breaks the script's contract, said so the writer can fix it.
     /// `pacing: false` keeps only the structural problems (order, range, emptiness).
     public static func problems(_ lines: [NarrationLine], duration: Double, language: Language = .english, pacing: Bool = true) -> [String] {
         var problems: [String] = []

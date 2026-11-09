@@ -14,10 +14,10 @@ extension VoiceService {
 
         public struct Meta: GranitePayload {
             public enum Kind: Sendable {
-                case loading
-                case voices([ElevenVoice], at: Date)
-                case failed(String)
+                case packs([SpeechPackInfo])
+                case failed(String?)
                 case previewing(String?)
+                case preparing(String?)
                 case cached(String)
                 case cachedAll(Swift.Set<String>)
             }

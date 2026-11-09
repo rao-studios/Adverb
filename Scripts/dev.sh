@@ -1,8 +1,9 @@
 #!/bin/bash
 # WHAT: Build + stable-sign + run the Mac app.
 # PIN:  Not `swift run`: SwiftPM ad-hoc-signs, and the identity is the cdhash, which changes every
-#       build (Ambient's dev.sh). The Keychain item is read through /usr/bin/security, so it
-#       survives either way; a stable signature keeps file-access grants (~/Music) too.
+#       build (Ambient's dev.sh). A stable signature keeps file-access grants (~/Music) too.
+#       MLX's mlx.metallib is installed beside the binary first (build-metallib.sh): `swift build`
+#       compiles no Metal, and without it the first model call aborts.
 #
 #   ./Scripts/dev.sh
 #   CONFIG=release ./Scripts/dev.sh
@@ -15,6 +16,7 @@ cd "$REPO_ROOT"
 
 echo "▸ swift build ($CONFIG)"
 swift build -c "$CONFIG" --product Adverb
+"$REPO_ROOT/Scripts/build-metallib.sh" "$CONFIG"
 
 BIN="$REPO_ROOT/.build/$CONFIG/Adverb"
 "$REPO_ROOT/Scripts/sign-binary.sh" "$BIN"

@@ -2,9 +2,9 @@
 //  PlanValidator.swift
 //  AdverbCore
 //
-//  WHAT: The plan Claude wrote, checked against the brief, then turned into campaign days: one
+//  WHAT: The plan the writer wrote, checked against the brief, then turned into campaign days: one
 //        per posting date, in order, inside the window, on platforms the brief allows, with times
-//        that parse, unique topic slugs, lengths the brief allows. What is wrong goes back to Claude
+//        that parse, unique topic slugs, lengths the brief allows. What is wrong goes back to the writer
 //        once, as a list.
 //
 

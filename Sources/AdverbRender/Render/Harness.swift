@@ -20,7 +20,7 @@ enum Harness {
       window.__ADVERB__={render:true,fps:30,errors:[]};
       window.requestAnimationFrame=function(){return 0};
       window.cancelAnimationFrame=function(){};
-      window.addEventListener('error',function(e){window.__ADVERB__.errors.push(String(e.message||e))});
+      window.addEventListener('error',function(e){window.__ADVERB__.errors.push(String(e.message||e)+(e.lineno?' (page.html line '+e.lineno+(e.colno?', column '+e.colno:'')+')':''))});
       document.addEventListener('DOMContentLoaded',function(){
         var s=document.createElement('style');
         s.textContent='*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}';
@@ -29,10 +29,29 @@ enum Harness {
     })();
     """
 
+    /// The kit's faces, as the probe names them.
+    static let faces = [#"italic 108px "Instrument Serif""#, #"108px "Instrument Serif""#, #"36px "Newsreader""#,
+                        #"italic 36px "Newsreader""#, #"500 20px "JetBrains Mono""#]
+
+    /// Whether each kit face is there, loaded by name (an async function body, for
+    /// `callAsyncJavaScript`). `document.fonts.check` alone says false for a face no text has used
+    /// yet (a page with no italic body text, or one whose italic is in a later scene), and true for
+    /// a face nothing declares. `load` fetches the face kit.css declares: none declared, or its file
+    /// missing, comes back empty.
+    static let loadFaces = """
+    var faces=\(jsArray(faces));var out={};
+    for(var i=0;i<faces.length;i++){var f=faces[i];try{out[f]=(await document.fonts.load(f)).length>0}catch(e){out[f]=false}}
+    return JSON.stringify(out);
+    """
+
+    static func jsArray(_ strings: [String]) -> String {
+        "[" + strings.map { "'" + $0.replacingOccurrences(of: "'", with: "\\'") + "'" }.joined(separator: ",") + "]"
+    }
+
     /// What the page is: its length, its scenes, whether the kit's faces loaded, what threw.
     static let probe = """
     (function(){
-      var faces=['italic 108px "Instrument Serif"','108px "Instrument Serif"','36px "Newsreader"','italic 36px "Newsreader"','500 20px "JetBrains Mono"'];
+      var faces=\(jsArray(faces));
       var fonts={};faces.forEach(function(f){fonts[f]=document.fonts.check(f)});
       return JSON.stringify({dur:Number(window.DUR||0),scenes:(window.SCENES||[]).map(Number),
         dpr:window.devicePixelRatio,fonts:fonts,errors:(window.__ADVERB__&&window.__ADVERB__.errors)||[],

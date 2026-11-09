@@ -11,6 +11,12 @@ import ImageIO
 import UniformTypeIdentifiers
 
 public enum ImageFiles {
+    /// An image file as a CGImage (a still, a sheet).
+    public static func read(_ url: URL) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
     public static func writeJPEG(_ image: CGImage, to url: URL, quality: Double) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else {
@@ -31,7 +37,7 @@ public enum ImageFiles {
 }
 
 extension ImageFiles {
-    /// A JPEG file re-encoded with its long edge at most `maxEdge`: stills sent to Claude.
+    /// An image file re-encoded as JPEG with its long edge at most `maxEdge`: what the eyes are shown.
     public static func jpegData(_ url: URL, maxEdge: Int = 1024, quality: Double = 0.85) -> Data? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [

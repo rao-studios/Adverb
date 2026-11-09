@@ -1,8 +1,9 @@
 #!/bin/bash
 # WHAT: Assemble build/Adverb.app from a release build.
-# OUT:  build/Adverb.app — binary, Info.plist (stamped with AdverbBuildCommit and AdverbBuildDate,
-#       which Settings › About shows), the resource bundles (the motion kit, the prompts, the UI
-#       faces), Assets.car (the macOS 26 layered icon) and AppIcon.icns.
+# OUT:  build/Adverb.app — binary, mlx.metallib beside it (MLX's kernels), Info.plist (stamped with
+#       AdverbBuildCommit and AdverbBuildDate, which Settings › About shows), the resource bundles
+#       (the motion kit, the prompts, the UI faces), Assets.car (the macOS 26 layered icon) and
+#       AppIcon.icns.
 #       build/app-metadata.json — version, build, commit, date, signer and the executable's MD5.
 # PIN:  Package.swift and Support/Info.plist must agree on the minimum OS.
 #       Sign inside-out; never --deep. A stable identity when there is one, else ad-hoc.
@@ -43,13 +44,17 @@ built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "▸ stamped AdverbBuildCommit $commit, AdverbBuildDate $built_at"
 
 copied=0
-for bundle in ".build/$CONFIG"/Adverb_*.bundle; do
+for bundle in ".build/$CONFIG"/Adverb_*.bundle ".build/$CONFIG"/Frigate_*.bundle; do
     [ -d "$bundle" ] || continue
     cp -R "$bundle" "$APP_DIR/Contents/Resources/"
     copied=$((copied + 1))
 done
 [ "$copied" -ge 2 ] || { echo "error: expected the Adverb_AdverbCore and Adverb_AdverbApp resource bundles, found $copied" >&2; exit 1; }
 echo "▸ copied $copied resource bundles"
+
+echo "▸ mlx.metallib beside the binary"
+"$REPO_ROOT/Scripts/build-metallib.sh" "$CONFIG" --app "$APP_DIR"
+[ -f "$APP_DIR/Contents/MacOS/mlx.metallib" ] || { echo "error: no mlx.metallib in $APP_DIR/Contents/MacOS" >&2; exit 1; }
 
 ICON_LOCK="/tmp/rao-actool.lock"
 for _ in $(seq 1 150); do

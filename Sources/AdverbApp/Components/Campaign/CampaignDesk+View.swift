@@ -45,7 +45,7 @@ extension CampaignDesk {
                         }
                     }
                     if selection.showRuns, !runs.isEmpty {
-                        RunsStrip(runs: runs, model: AdverbRuntimeRoot.shared.settings.model)
+                        RunsStrip(runs: runs, model: AdverbRuntimeRoot.shared.settings.textModelID)
                     }
                 }
             } else {

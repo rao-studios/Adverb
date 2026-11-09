@@ -7,7 +7,7 @@
 //        assets/NN-topic/{page.html, NN-topic-portrait.mp4, NN-topic-landscape.mp4, sheet.jpg,
 //        stills/, NN-topic-<orientation>.{vtt,srt}, NN-topic.descriptions.vtt, NN-topic.transcript.md,
 //        NN-topic.beats.js, NN-topic-<orientation>.screen.vtt (a narrated asset's on-screen text),
-//        voice/<code>/{script.json, line-NN.mp3}, and per other language NN-topic-<orientation>.<code>.mp4,
+//        voice/<code>/{script.json, line-NN.wav}, and per other language NN-topic-<orientation>.<code>.mp4,
 //        NN-topic-<orientation>.<code>.{vtt,srt}, NN-topic.<code>.transcript.md, original/, retimes/}}.
 //
 
@@ -64,7 +64,8 @@ public struct AssetPaths: Sendable, Equatable {
     public var voice: URL { folder.appendingPathComponent("voice", isDirectory: true) }
     public func voice(_ l: Language) -> URL { voice.appendingPathComponent(l.code, isDirectory: true) }
     public func script(_ l: Language) -> URL { voice(l).appendingPathComponent("script.json") }
-    public func clip(_ l: Language, _ line: Int) -> URL { voice(l).appendingPathComponent(String(format: "line-%02d.mp3", line)) }
+    /// One spoken line: 24 kHz mono WAV (the ElevenLabs build wrote `.mp3`; a script names its own clips).
+    public func clip(_ l: Language, _ line: Int) -> URL { voice(l).appendingPathComponent(String(format: "line-%02d.wav", line)) }
     /// A narrated asset's on-screen text cues (its shipped captions carry the speech).
     public func screenVTT(_ o: Orientation) -> URL { folder.appendingPathComponent("\(stem)-\(o.rawValue).screen.vtt") }
     /// English is the asset's own files; another language gets `.<code>` before the extension.

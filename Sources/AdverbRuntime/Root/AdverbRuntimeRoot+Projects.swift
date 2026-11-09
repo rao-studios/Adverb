@@ -52,7 +52,8 @@ extension AdverbRuntimeRoot {
 
     public func removeProject(_ project: Project, deleteFolder: Bool) async {
         guard let workspace else { return }
-        generation.center.$builder.cancel(prefix: "")
+        generation.center.$drafter.cancel(prefix: "")
+        generation.center.$renderer.cancel(prefix: "")
         do {
             try await Task.detached { try ProjectStore(workspace: workspace).remove(project, deleteFolder: deleteFolder) }.value
             projects.set(.removed(slug: project.slug))

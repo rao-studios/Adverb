@@ -12,7 +12,7 @@ import Foundation
 import Granite
 
 public enum VoiceTask: Sendable, Equatable {
-    /// The English narration in `voice`; `rescript` asks Claude for new lines first.
+    /// The English narration in `voice`; `rescript` asks the writer for new lines first.
     case english(VoiceSelection, rescript: Bool = false)
     /// The confirmed English in these languages.
     case languages([Language])

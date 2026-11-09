@@ -3,9 +3,9 @@
 //  Adverb
 //
 //  WHAT: The brief for a month: when it starts and how long, where the audience is, which platforms,
-//        which days to post, how long the assets run, what to feature and why, and whether an
-//        ElevenLabs voice narrates each asset (the key asked for here when there is none). Creates a
-//        draft and starts planning it.
+//        which days to post, how long the assets run, what to feature and why, and whether a voice
+//        on this Mac narrates each asset (downloaded from here when there is none). Creates a draft
+//        and starts planning it on this Mac.
 //
 
 import AdverbCore
@@ -29,9 +29,7 @@ struct NewCampaignSheet: View {
     @State private var creating = false
     @State private var voiceOn = false
     @State private var voice: VoiceSelection?
-    @State private var voiceModel = VoiceSelection.defaultModel
-    @State private var hasVoiceKey = false
-    @State private var voiceKeyDraft = ""
+    @State private var hasVoice = false
     @State private var pickingVoice = false
 
     static let zones = ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris",
@@ -95,6 +93,8 @@ struct NewCampaignSheet: View {
             }
             FormRow(label: "Goals") { AdverbTextArea(text: $goals, minHeight: 54) }
             FormRow(label: "Notes for the planner") { AdverbTextArea(text: $notes, minHeight: 54) }
+            Text("Planned on this Mac by \(ModelCatalog.spec(root.settings.textModelID)?.title ?? ModelInfo.shortName(root.settings.textModelID)): a few minutes for a month.")
+                .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
         } actions: {
             Button("Cancel") { root.stopPreview(); selection.sheet = nil }.buttonStyle(.adverbQuiet).keyboardShortcut(.cancelAction)
             if creating { ProgressView().controlSize(.small) }
@@ -109,29 +109,31 @@ struct NewCampaignSheet: View {
             let s = root.settings
             voiceOn = s.voiceOverDefault
             voice = s.voiceSelection
-            voiceModel = s.voiceModel
-            hasVoiceKey = root.hasVoiceKey
+            hasVoice = root.hasVoice
         }
-        .onChange(of: voiceModel) { _, model in voice?.modelID = model }
     }
 
-    /// Voice-over: on or off, the key when there is none, the voice (heard before it is chosen).
+    /// Voice-over: on or off, the voice (heard before it is chosen), or where to get one.
     @ViewBuilder private var voiceRow: some View {
-        FormRow(label: "Voice-over", hint: "Claude writes a short narration for each asset and an ElevenLabs voice speaks it over both videos. Other languages come after you confirm a day's English.") {
-            Toggle("Narrate every asset with an ElevenLabs voice", isOn: $voiceOn).adverbType(.label)
+        FormRow(label: "Voice-over", hint: "The writer writes a short narration for each asset and a voice on this Mac speaks it over both videos. Other languages come after you confirm a day's English.") {
+            Toggle("Narrate every asset", isOn: $voiceOn).adverbType(.label)
             if voiceOn {
-                if !hasVoiceKey {
-                    VoiceKeyField(draft: $voiceKeyDraft) { hasVoiceKey = root.hasVoiceKey }
+                if !hasVoice {
+                    HStack(spacing: .layer2) {
+                        Text("No voice is on this Mac yet.").adverbType(.caption).foregroundStyle(Color.adverbInkDim)
+                        Button("Download the voice") { for spec in ModelCatalog.speech { root.downloadModel(spec) } }.buttonStyle(.adverbQuiet)
+                        Button("Check again") { Task { await root.loadVoices(); hasVoice = root.hasVoice } }.buttonStyle(.adverbLink)
+                    }
                 } else {
                     HStack(spacing: .layer2) {
                         if let voice {
                             Image(systemName: "waveform").font(.adverbGlyph(AdverbGlyph.body)).foregroundStyle(Color.adverbGold)
                             VStack(alignment: .leading, spacing: .hairline) {
                                 Text(voice.voiceName).adverbType(.labelStrong)
-                                Text(AdverbSettings.voiceModels.first { $0.id == voice.modelID }?.title ?? voice.modelID)
+                                Text(root.voice.state.pack(voice.packID)?.title ?? "On this Mac")
                                     .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
                             }
-                            Button("Hear it") { Task { await root.previewVoice(voice.voiceID) } }.buttonStyle(.adverbLink)
+                            Button("Hear it") { Task { await root.previewVoice(pack: voice.packID, voice: voice.voiceID) } }.buttonStyle(.adverbLink)
                         } else {
                             Text("Choose a voice below.").adverbType(.caption).foregroundStyle(Color.adverbInkDim)
                         }
@@ -139,10 +141,8 @@ struct NewCampaignSheet: View {
                         if voice != nil { Button(pickingVoice ? "Done" : "Change…") { pickingVoice.toggle() }.buttonStyle(.adverbLink) }
                     }
                     if pickingVoice || voice == nil {
-                        Picker("Model", selection: $voiceModel) { ForEach(AdverbSettings.voiceModels, id: \.id) { Text($0.title).tag($0.id) } }
-                            .adverbType(.label)
-                        VoicePicker(selectedID: voice?.voiceID, height: AdverbLayout.voiceList.compact) { v in
-                            voice = VoiceSelection(voiceID: v.id, voiceName: v.name, modelID: voiceModel)
+                        VoicePicker(selectedPack: voice?.packID, selectedID: voice?.voiceID, height: AdverbLayout.voiceList.compact) { v in
+                            voice = VoiceSelection(voiceID: v.id, voiceName: v.name, packID: v.packID)
                             pickingVoice = false
                         }
                     }
@@ -153,7 +153,7 @@ struct NewCampaignSheet: View {
 
     private var valid: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty && !platforms.isEmpty && !postDays.isEmpty && !durations.isEmpty && !brief.postDates.isEmpty
-            && (!voiceOn || (hasVoiceKey && voice != nil))
+            && (!voiceOn || (hasVoice && voice != nil))
     }
 
     private func toggle<T: Hashable>(_ set: inout Set<T>, _ value: T) {
@@ -168,7 +168,7 @@ struct NewCampaignSheet: View {
         let on = voiceOn, chosen = voice
         root.update { s in
             s.voiceOverDefault = on
-            if let chosen { s.voiceID = chosen.voiceID; s.voiceName = chosen.voiceName; s.voiceModel = chosen.modelID }
+            if let chosen { s.voiceID = chosen.voiceID; s.voiceName = chosen.voiceName; s.voicePack = chosen.packID }
         }
         Task {
             if let campaign = await AdverbRuntimeRoot.shared.createCampaign(slug, name: name.trimmingCharacters(in: .whitespaces), brief: brief, planNow: plan) {

@@ -5,7 +5,7 @@
 //  WHAT: An asset's accessibility: alt text, closed captions of the on-screen text per
 //        orientation (WebVTT and SRT), a descriptions track, a transcript, and the checks it passed.
 //  PIN:  Captions come from the render pass itself (what was visible, when), so their timing is
-//        the video's, warped or not. Descriptions and alt text are Claude's, written with the page.
+//        the video's, warped or not. Descriptions and alt text are the writer's, written with the page.
 //
 
 import Foundation

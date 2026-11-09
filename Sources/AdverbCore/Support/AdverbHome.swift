@@ -5,7 +5,7 @@
 //  WHAT: Where Adverb keeps what is the person's and not a project's: settings, under AII_HOME
 //        (default `~/.rao`) at apps/adverb, beside Craft's, Ambient's and Veil's.
 //  PIN:  The projects and their assets never live here: they live in the working directory the
-//        person chose (the T9). The API key never lives here either: it is in the Keychain.
+//        person chose (the T9). Models live in the stack's shared home (ModelHome).
 //
 
 import Foundation
@@ -30,6 +30,6 @@ public enum AdverbHome {
             .appendingPathComponent("nyc.rao.adverb", isDirectory: true)
     }
 
-    /// ElevenLabs' voice list and each voice's preview: fetched once, re-fetched when missing.
+    /// Each voice's preview, spoken once on this Mac and kept.
     public static var voices: URL { caches.appendingPathComponent("voices", isDirectory: true) }
 }

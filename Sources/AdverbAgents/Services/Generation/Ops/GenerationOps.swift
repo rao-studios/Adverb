@@ -23,15 +23,21 @@ public enum GenerationOps {
     public static func event(_ event: GenerationEvent, key: String, to state: inout GenerationService.Center.State) {
         var run = state.runs[key] ?? started(key)
         switch event {
-        case .step(let name): run.step = name; run.progress = 0; run.log.append("▸ \(name)")
+        case .step(let name): run.step = name; run.progress = 0; run.writing = ""; run.log.append("▸ \(name)")
         case .progress(let p): run.progress = p
         case .activity(let text):
             run.activity = String((run.activity + text).suffix(600))
+        case .writing(let text):
+            run.writing = String((run.writing + text).suffix(1_200))
+            run.written += text.count
         case .usage(let u): run.usage = u
         case .voiceUsage(let v): run.voice = v
         case .log(let line): run.log.append(line)
         case .planned(let count):
             run.log.append("Planned \(count) days")
+            if let id = run.campaignID { state.revisions[id, default: 0] += 1 }
+        case .sheet(let day):
+            run.log.append("Day \(day): sheet drawn")
             if let id = run.campaignID { state.revisions[id, default: 0] += 1 }
         case .dayDone(let day):
             run.log.append("Day \(day) written")

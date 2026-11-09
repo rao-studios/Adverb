@@ -64,6 +64,8 @@ enum AdverbLayout {
     static let voiceLines: CGFloat = 180
     /// The time column of a list of timed lines.
     static let timeColumn: CGFloat = 44
+    /// The dates column of the month's arc ("NOV 24–30").
+    static let dateColumn: CGFloat = 76
     static let sheetWidth: CGFloat = 560
     static let onboardingWidth: CGFloat = 560
     static let screenMargin = CGSize(width: 80, height: 60)

@@ -2,7 +2,7 @@
 //  ContextDigest.swift
 //  AdverbCore
 //
-//  WHAT: What Claude reads about a project: its README, CLAUDE.md/AGENTS.md, skills, docs, the
+//  WHAT: What the writer reads about a project: its README, CLAUDE.md/AGENTS.md, skills, docs, the
 //        text of its site pages, its manifest. Read from the context folder (never written), in a
 //        fixed order, capped per file and in total, opened by an inventory of everything found so
 //        the reader knows what was cut.

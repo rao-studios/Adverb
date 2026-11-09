@@ -2,12 +2,13 @@
 //  DayPane.swift
 //  Adverb
 //
-//  WHAT: One posting day, beside the calendar: the asset playing (portrait or landscape, captions
-//        on), when to post and why, the post itself to copy, marking it posted, the accessibility
-//        files, the music, the voice-over and its languages, and what in the asset is illustrative.
+//  WHAT: One posting day, beside the calendar: its contact sheet to approve or send back (before
+//        it renders), the asset playing once it has (portrait or landscape, captions on), when to
+//        post and why, the post itself to copy, marking it posted, the accessibility files, the
+//        music, the voice-over and its languages, and what in the asset is illustrative.
 //  IN:   the day (from CampaignService), its run (GenerationService)
-//  OUT:  AdverbRuntimeRoot (build, setStatus, editDay, revert, confirmEnglish, languages), the
-//        music sheet, the voice sheet
+//  OUT:  AdverbRuntimeRoot (write, approve, render, setStatus, editDay, revert, confirmEnglish,
+//        languages), the music sheet, the voice sheet
 //
 
 import AdverbAgents
@@ -34,14 +35,22 @@ struct DayPane: View {
                     if let run, run.phase == .running { RunCard(run: run) }
                     if let problem = day.problem, run?.phase != .running {
                         AdverbCard { VStack(alignment: .leading, spacing: .layer2) {
-                            Label("The last build stopped", systemImage: "exclamationmark.triangle").adverbType(.labelStrong).foregroundStyle(Color.adverbWarning)
+                            Label("The last run stopped", systemImage: "exclamationmark.triangle").adverbType(.labelStrong).foregroundStyle(Color.adverbWarning)
                             Text(problem).adverbType(.caption).foregroundStyle(Color.adverbInkDim).textSelection(.enabled)
                         } }
                     }
-                    if let asset = day.asset, let paths {
+                    let busy = run?.phase == .running
+                    if let asset = day.asset, let paths, !asset.renders.isEmpty {
                         PlayerCard(asset: asset, paths: paths, selection: selection)
+                        SheetCard(day: day, asset: asset, paths: paths, busy: busy, compact: true,
+                                  approve: { _ in }, redo: { note in root.write(project.slug, campaign.id, day: day.index, note: note) }, render: {})
+                    } else if let asset = day.asset, let paths, asset.sheetPath != nil {
+                        SheetCard(day: day, asset: asset, paths: paths, busy: busy,
+                                  approve: { now in Task { await root.approve(project.slug, campaign.id, day: day.index, render: now) } },
+                                  redo: { note in root.write(project.slug, campaign.id, day: day.index, note: note) },
+                                  render: { root.render(project.slug, campaign.id, day: day.index) })
                     } else {
-                        ScenesCard(day: day) { root.build(project.slug, campaign.id, day: day.index) }
+                        ScenesCard(day: day) { root.write(project.slug, campaign.id, day: day.index) }
                     }
                     WhenCard(day: day, zone: campaign.brief.timeZone)
                     PostCard(day: day) { edited in
@@ -50,7 +59,7 @@ struct DayPane: View {
                     StatusCard(day: day) { status, platform in
                         Task { await root.setStatus(project.slug, campaign.id, day: day.index, status, platform: platform) }
                     }
-                    if let asset = day.asset, let paths {
+                    if let asset = day.asset, let paths, !asset.renders.isEmpty {
                         AccessibilityCard(asset: asset, paths: paths, platforms: day.targets.map(\.platform))
                         MusicCard(asset: asset, busy: run?.phase == .running,
                                   choose: { selection.sheet = .music(slug: project.slug, campaign: campaign.id, day: day.index) },
@@ -59,6 +68,9 @@ struct DayPane: View {
                                   choose: { selection.sheet = .voice(slug: project.slug, campaign: campaign.id, day: day.index) },
                                   confirm: { Task { await root.confirmEnglish(project.slug, campaign.id, day: day.index) } },
                                   generate: { languages in root.languages(project.slug, campaign.id, day: day.index, languages) })
+                        NotesCard(notes: asset.notes, reviewed: asset.reviewed)
+                        FilesCard(asset: asset, paths: paths, stem: day.stem)
+                    } else if let asset = day.asset, let paths {
                         NotesCard(notes: asset.notes, reviewed: asset.reviewed)
                         FilesCard(asset: asset, paths: paths, stem: day.stem)
                     }
@@ -77,8 +89,8 @@ struct DayPane: View {
             }
             Spacer()
             Menu {
-                Button(day.asset == nil ? "Build this day" : "Rebuild this day") { root.build(project.slug, campaign.id, day: day.index) }
-                if day.asset != nil {
+                Button(day.asset?.sheetPath == nil ? "Write this day's sheet" : "Write this day again") { root.write(project.slug, campaign.id, day: day.index) }
+                if let asset = day.asset, !asset.renders.isEmpty {
                     Button("Cut to a song…") { selection.sheet = .music(slug: project.slug, campaign: campaign.id, day: day.index) }
                     Button(day.asset?.voiceOver == nil ? "Add a voice-over…" : "Another voice…") {
                         selection.sheet = .voice(slug: project.slug, campaign: campaign.id, day: day.index)

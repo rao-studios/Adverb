@@ -6,7 +6,7 @@
 //        presence (never the key), the working directory and whether its drive is there, the model,
 //        the renderer, the toolchain check.
 //  OUT:  ConfigService+Center, Reducers/ConfigService.Set, Ops/ConfigOps
-//  PIN:  A mirror: settings.json and the Keychain stay the truth; a change is written there by the
+//  PIN:  A mirror: settings.json stays the truth; a change is written there by the
 //        root and read back here (Craft's ConfigService).
 //
 

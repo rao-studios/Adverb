@@ -2,9 +2,9 @@
 //  PageVerifier.swift
 //  AdverbCore
 //
-//  WHAT: A page Claude wrote, made to resolve and checked before anything renders it: the kit's
+//  WHAT: A page the writer wrote, made to resolve and checked before anything renders it: the kit's
 //        files pointed at the project's kit folder, and the page contract (rao-motion-assets §6
-//        and Adverb's addendum) checked statically. What is wrong goes back to Claude once.
+//        and Adverb's addendum) checked statically. What is wrong goes back to the writer (two rounds).
 //
 
 import Foundation

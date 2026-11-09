@@ -8,12 +8,16 @@
 //        back into the services.
 //  PIN:  A relay is live from its init, so this object holding them keeps the services alive.
 //        Granite's send is main-only: the root is @MainActor and the services hop when written
-//        from elsewhere. Reading the Keychain spawns /usr/bin/security: never on main.
+//        from elsewhere. Scanning the models home reads the disk: never on main.
+//  PIN:  NOTHING HERE CALLS A REMOTE API. The writer, the eyes and the voices run on this Mac
+//        (AdverbModels, AdverbVoice); the only network use is downloading a pinned model.
 //
 
 import AdverbAgents
 import AdverbCore
+import AdverbModels
 import AdverbRender
+import AdverbVoice
 import AppKit
 import Foundation
 import Granite
@@ -31,13 +35,10 @@ public final class AdverbRuntimeRoot {
     @Relay(.silence) public var generation: GenerationService
     @Relay(.silence) public var music: MusicService
     @Relay(.silence) public var voice: VoiceService
+    @Relay(.silence) public var models: ModelService
 
-    /// The key, once read, so a run's compute resolves without a process.
-    var apiKey: Secret?
-    var keyStore: KeyStore = KeychainKeyStore()
-    /// The ElevenLabs key, once read. Optional: without it campaigns stay silent.
-    var voiceKey: Secret?
-    var voiceKeyStore: KeyStore = KeychainKeyStore(account: KeychainKeyStore.elevenLabsAccount)
+    /// Downloads under way, by model id: Cancel stops them.
+    var modelDownloads: [String: Task<Void, Never>] = [:]
     /// The voice preview playing, and the task that marks it done.
     var previewingVoice: String?
     var previewTask: Task<Void, Never>?
@@ -65,8 +66,8 @@ public final class AdverbRuntimeRoot {
         config.set(.settings(settings))
         attachAgents()
         watchVolumes()
-        await reloadKey()
-        await reloadVoiceKey()
+        await refreshModels()
+        await loadVoices()
         await refresh()
         if let folder = settings.musicFolder { Task { await self.scanMusic(URL(fileURLWithPath: folder, isDirectory: true)) } }
     }
@@ -76,13 +77,13 @@ public final class AdverbRuntimeRoot {
         let gate = evaluateGate()
         if case .driveNotMounted = gate { config.set(.gate(gate)); return }
         if case .workdirMissing = gate { config.set(.gate(gate)); return }
-        if gate == .needsKey || gate == .needsWorkdir { config.set(.gate(gate)); return }
+        if gate == .needsModels || gate == .needsWorkdir { config.set(.gate(gate)); return }
         await reloadProjects()
         config.set(.gate(projectCount == 0 ? .noProjects : .ready))
     }
 
     func evaluateGate() -> Gate {
-        guard apiKey != nil else { return .needsKey }
+        guard hasWriter else { return .needsModels }
         guard let workspace else { return .needsWorkdir }
         switch workspace.gate {
         case .notMounted(let volume): return .driveNotMounted(volume)
@@ -114,55 +115,6 @@ public final class AdverbRuntimeRoot {
         }
     }
 
-    // MARK: - Key
-
-    func reloadKey() async {
-        let store = keyStore
-        let resolved = await Task.detached { KeyResolver(store: store, environment: ProcessInfo.processInfo.environment).resolve() }.value
-        apiKey = resolved?.secret
-        config.set(.key(source: resolved?.source, masked: resolved?.secret.masked))
-    }
-
-    /// Saves the key to the Keychain, then checks it against the API.
-    public func saveKey(_ text: String) async -> Bool {
-        guard let secret = Secret(text) else { config.set(.problem("That key is empty.")); return false }
-        let store = keyStore
-        do {
-            try await Task.detached { try store.write(secret) }.value
-        } catch {
-            config.set(.problem("The key was not saved: \(error)"))
-            return false
-        }
-        await reloadKey()
-        await testKey()
-        await refresh()
-        return true
-    }
-
-    public func forgetKey() async {
-        let store = keyStore
-        try? await Task.detached { try store.forget() }.value
-        await reloadKey()
-        await refresh()
-    }
-
-    /// A free call that proves the key and the model: GET /v1/models/{model}.
-    @discardableResult
-    public func testKey() async -> Bool {
-        guard let apiKey else { config.set(.keyChecked(false)); return false }
-        let client = ClaudeClient(config: ClaudeConfig(apiKey: apiKey, model: settings.model))
-        do {
-            try await client.ping()
-            config.set(.keyChecked(true))
-            config.set(.notice("The key works with \(settings.model)."))
-            return true
-        } catch {
-            config.set(.keyChecked(false))
-            config.set(.problem("\(error)"))
-            return false
-        }
-    }
-
     // MARK: - Working directory
 
     public func chooseWorkdir(_ url: URL) async {
@@ -180,21 +132,45 @@ public final class AdverbRuntimeRoot {
 
     // MARK: - Compute
 
+    /// The writer this Mac uses is on it.
+    public var hasWriter: Bool { ModelInstaller.resolve(settings.textModelID) != nil }
+
     func compute() throws -> AdverbCompute {
-        guard let apiKey else { throw ClaudeError.noKey }
         guard let workspace else { throw WorkspaceError.noWorkdir }
         guard VolumeGate.isUsable(workspace.gate) else { throw WorkspaceError.unavailable(workspace.gate) }
         let s = settings
-        let client = ClaudeClient(config: ClaudeConfig(apiKey: apiKey, model: s.model, effort: s.effort, fallbacks: s.fallbacks))
-        return AdverbCompute(client: client, prompts: try PromptLibrary.load(skillPath: s.skillPath), workspace: workspace, settings: s,
-                             voice: voiceClient)
+        let textID = s.textModelID
+        // A writer that is not on this Mac fails only the steps that write: a warp re-cut or a
+        // voice step on lines already written still runs.
+        let text: any LanguageModel = ModelInstaller.resolve(textID) != nil
+            ? ModelPool.shared.handle(textID, slot: .text) : MissingLanguageModel(id: textID)
+        var vision: (any LanguageModel)?
+        if text.info.acceptsImages {
+            vision = text
+        } else if let eyes = s.visionModel ?? ModelCatalog.spec(textID).flatMap({ ModelCatalog.vision(for: $0)?.id }),
+                  ModelInstaller.resolve(eyes) != nil {
+            vision = ModelPool.shared.handle(eyes, slot: .vision)
+        }
+        let voices: (any SpeechProvider)? = VoiceLibrary.shared.packs.isEmpty ? nil : VoiceLibrary.shared
+        return AdverbCompute(text: text, vision: vision, voice: voices, prompts: try PromptLibrary.load(skillPath: s.skillPath),
+                             workspace: workspace, settings: s)
     }
 
     func attachAgents() {
         let resolve: @Sendable (Any) async throws -> AdverbCompute = { _ in try await MainActor.run { try AdverbRuntimeRoot.shared.compute() } }
         generation.center.$planner.attach { try await resolve($0) }
-        generation.center.$builder.attach { try await resolve($0) }
+        generation.center.$drafter.attach { try await resolve($0) }
+        generation.center.$renderer.attach { try await resolve($0) }
         generation.center.$retimer.attach { try await resolve($0) }
         generation.center.$voicer.attach { try await resolve($0) }
+    }
+}
+
+/// The writer the settings name when it is not on this Mac: every call says so.
+struct MissingLanguageModel: LanguageModel {
+    let id: String
+    var info: ModelInfo { ModelInfo(id: id, title: ModelCatalog.spec(id)?.title) }
+    func complete(_ request: ModelRequest, onEvent: @escaping @Sendable (ModelEvent) -> Void) async throws -> ModelAnswer {
+        throw ModelError.notInstalled(id)
     }
 }

@@ -12,6 +12,9 @@ import Testing
         let voice = RunKey.parse(RunKey.voice(id, 4))
         #expect(voice.kind == "Voice" && voice.campaign == id && voice.day == 4)
         #expect(RunKey.voice(id, 4).hasPrefix(RunKey.voicePrefix(id)))
+        let render = RunKey.parse(RunKey.render(id, 5))
+        #expect(render.kind == "Render" && render.campaign == id && render.day == 5)
+        #expect(RunKey.parse(RunKey.build(id, 7)).kind == "Sheet")
     }
 
     @Test func aDayShowsWhicheverRunIsWorkingOnIt() {
@@ -19,12 +22,27 @@ import Testing
         let id = UUID()
         GenerationOps.lifecycle(.running, message: nil, key: RunKey.build(id, 3), to: &state)
         GenerationOps.lifecycle(.finished, message: nil, key: RunKey.build(id, 3), to: &state)
-        #expect(state.dayRun(id, 3)?.kind == "Build")
+        #expect(state.dayRun(id, 3)?.kind == "Sheet")
         GenerationOps.lifecycle(.running, message: nil, key: RunKey.voice(id, 3), to: &state)
         #expect(state.dayRun(id, 3)?.kind == "Voice")
         #expect(state.dayRun(id, 4) == nil)
         GenerationOps.event(.voiceUsage(VoiceUsage(characters: 230, requests: 4)), key: RunKey.voice(id, 3), to: &state)
         #expect(state.runs[RunKey.voice(id, 3)]?.voice?.characters == 230)
+        GenerationOps.lifecycle(.running, message: nil, key: RunKey.render(id, 3), to: &state)
+        #expect(state.dayRun(id, 3)?.kind == "Voice" || state.dayRun(id, 3)?.kind == "Render")
+    }
+
+    @Test func whatTheModelWritesIsKeptAsItsTail() {
+        var state = GenerationService.Center.State()
+        let key = RunKey.build(UUID(), 1)
+        GenerationOps.lifecycle(.running, message: nil, key: key, to: &state)
+        GenerationOps.event(.writing("<!doctype html>"), key: key, to: &state)
+        GenerationOps.event(.writing(String(repeating: "x", count: 2_000)), key: key, to: &state)
+        #expect(state.runs[key]?.writing.count == 1_200)
+        #expect(state.runs[key]?.written == 2_015)
+        GenerationOps.event(.step("Stills"), key: key, to: &state)
+        #expect(state.runs[key]?.writing.isEmpty == true, "a new step starts a clean tail")
+        #expect(AgentStream.coalesce(.writing("a"), .writing("b")) == .writing("ab"))
     }
 
     @Test func eventsFoldIntoARun() {

@@ -80,45 +80,26 @@ import Testing
 
     @Test func settingsDecodeTolerantly() throws {
         let url = Fixture.temp().appendingPathComponent("settings.json")
-        try #"{"workdir":"/Volumes/T9/rao","model":"claude-sonnet-5-5"}"#.write(to: url, atomically: true, encoding: .utf8)
+        try #"{"workdir":"/Volumes/T9/rao","textModel":"rao-studios/Qwen3.8-27B-mlx-4bit"}"#.write(to: url, atomically: true, encoding: .utf8)
         let s = AdverbSettings.load(from: url)
         #expect(s.workdir == "/Volumes/T9/rao")
-        #expect(s.model == "claude-sonnet-5-5")
-        #expect(s.effort == "high")
+        #expect(s.textModel == "rao-studios/Qwen3.8-27B-mlx-4bit")
+        #expect(s.textModelID == ModelCatalog.recommended().text.id, "a writer no longer offered gives way to the default")
+        #expect(AdverbSettings(textModel: ModelCatalog.nemotronSuper.id).textModelID == ModelCatalog.nemotronSuper.id)
+        #expect(s.thinking && s.sheetGate && s.reviewPass)
         #expect(s.renderer == .native)
         #expect(s.voiceOverDefault == false)
-        #expect(s.voiceModel == "eleven_multilingual_v2")
         #expect(s.voiceLanguages.isEmpty)
         #expect(s.voiceSelection == nil)
-        try #"{"voiceLanguages":["es","zz","fr"],"voiceOverDefault":true,"voiceID":"v1","voiceName":"Rachel"}"#.write(to: url, atomically: true, encoding: .utf8)
+        try #"{"voiceLanguages":["es","zz","fr"],"voiceOverDefault":true,"voiceID":"bf_alice","voiceName":"Alice","voicePack":"kokoro-82m-en"}"#
+            .write(to: url, atomically: true, encoding: .utf8)
         let v = AdverbSettings.load(from: url)
         #expect(v.voiceLanguages == [.french, .spanish])
         #expect(v.voiceOverDefault)
-        #expect(v.voiceSelection == VoiceSelection(voiceID: "v1", voiceName: "Rachel"))
+        #expect(v.voiceSelection == VoiceSelection(voiceID: "bf_alice", voiceName: "Alice", packID: "kokoro-82m-en"))
         // Round trip keeps them.
         try v.save(to: url)
         #expect(AdverbSettings.load(from: url) == v)
-    }
-
-    @Test func secretsNeverPrint() {
-        let secret = Secret("sk-ant-abcdefghijklmnop1234")!
-        #expect("\(secret)" == "Secret(••••)")
-        #expect(secret.masked == "sk-ant-…1234")
-        #expect(Secret("   ") == nil)
-        let resolver = KeyResolver(store: MemoryKeyStore(), environment: ["ANTHROPIC_API_KEY": "sk-env"])
-        #expect(resolver.resolve()?.source == .environment)
-        let both = KeyResolver(store: MemoryKeyStore(Secret("sk-own")), environment: ["ANTHROPIC_API_KEY": "sk-env"])
-        #expect(both.resolve()?.secret.value == "sk-own")
-        #expect(KeychainKeyStore.addCommand(service: "s", account: "a", secret: Secret("ab")!).hasSuffix("-X 6162\n"))
-        // The ElevenLabs key: its own account and variable; the Claude variable never stands in for it.
-        let voice = KeyResolver(store: MemoryKeyStore(), environment: ["ANTHROPIC_API_KEY": "sk-env"], envName: KeyResolver.elevenLabsEnv)
-        #expect(voice.resolve() == nil)
-        let fromEnv = KeyResolver(store: MemoryKeyStore(), environment: ["ELEVENLABS_API_KEY": "xi-env"], envName: KeyResolver.elevenLabsEnv)
-        #expect(fromEnv.resolve()?.source == .environment)
-        #expect(KeychainKeyStore(account: KeychainKeyStore.elevenLabsAccount).account == "ELEVENLABS_API_KEY")
-        #expect(KeychainKeyStore().account == "ANTHROPIC_API_KEY")
-        #expect(KeySource.environment.label(env: KeyResolver.elevenLabsEnv) == "ELEVENLABS_API_KEY in the environment")
-        #expect(KeySource.environment.label == "ANTHROPIC_API_KEY in the environment")
     }
 
     @Test func campaignPathsName() {

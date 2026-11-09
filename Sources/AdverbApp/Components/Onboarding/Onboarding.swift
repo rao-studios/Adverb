@@ -2,10 +2,11 @@
 //  Onboarding.swift
 //  Adverb
 //
-//  WHAT: First launch, in three steps, each shown while it is what stands at the gate: the Claude
-//        API key, the working directory (the T9), the first project.
-//  IN:   ConfigService (gate, key, settings)
-//  OUT:  AdverbRuntimeRoot (saveKey, chooseWorkdir, createProject)
+//  WHAT: First launch, in three steps, each shown while it is what stands at the gate: the models
+//        (downloaded once, then everything runs on this Mac), the working directory (the T9), the
+//        first project.
+//  IN:   ConfigService (gate, settings), ModelService (what is installed, what is downloading)
+//  OUT:  AdverbRuntimeRoot (downloadRecommended, downloadModel, useTextModel, chooseWorkdir, createProject)
 //
 
 import AdverbCore
@@ -17,6 +18,7 @@ import SwiftUI
 struct Onboarding: GraniteComponent {
     @Command var center: Center
     @Relay var config: ConfigService
+    @Relay var models: ModelService
     let selection: DeskSelection
     @State var form = OnboardingForm()
     @State var tick = 0
@@ -24,14 +26,15 @@ struct Onboarding: GraniteComponent {
     init(selection: DeskSelection) { self.selection = selection }
 
     var configChanged: ObservableObjectPublisher { _config.relay.objectWillChange }
+    var modelsChanged: ObservableObjectPublisher { _models.relay.objectWillChange }
 
-    enum Step: Int, CaseIterable { case key, workdir, project
-        var title: String { ["Your Claude key", "Where Adverb works", "The first project"][rawValue] }
+    enum Step: Int, CaseIterable { case models, workdir, project
+        var title: String { ["The models", "Where Adverb works", "The first project"][rawValue] }
     }
 
     var step: Step {
         switch config.state.gate {
-        case .needsKey: .key
+        case .needsModels: .models
         case .needsWorkdir: .workdir
         default: .project
         }
@@ -43,8 +46,6 @@ struct Onboarding: GraniteComponent {
 @MainActor
 @Observable
 final class OnboardingForm {
-    var key = ""
-    var saving = false
     var projectName = ""
     var context: URL?
     var preset = AppIdentity.ambient.name

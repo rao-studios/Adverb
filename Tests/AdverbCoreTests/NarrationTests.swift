@@ -2,13 +2,13 @@ import Foundation
 import Testing
 @testable import AdverbCore
 
-private extension Array where Element == ClaudeMessageParam {
-    var text: String { flatMap(\.content).compactMap { $0["text"]?.stringValue }.joined(separator: "\n") }
+private extension Array where Element == ModelTurn {
+    var text: String { map(\.text).joined(separator: "\n") }
 }
 
 @Suite struct NarrationTests {
     func recorded(_ text: String, at: Double, until: Double, spoken: (Double, Double), words: [WordTiming] = []) -> NarrationLine {
-        NarrationLine(index: 0, text: text, at: at, until: until, spokenStart: spoken.0, spokenEnd: spoken.1, words: words, clipPath: "x.mp3")
+        NarrationLine(index: 0, text: text, at: at, until: until, spokenStart: spoken.0, spokenEnd: spoken.1, words: words, clipPath: "x.wav")
     }
 
     @Test func linesFromAnAnswerAreOrderedAndNumbered() {

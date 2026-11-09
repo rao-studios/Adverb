@@ -21,7 +21,7 @@ public final class RunLog: @unchecked Sendable {
         let suffix: String
         switch kind {
         case .build(let days) where days.count == 1: suffix = "-day\(days[0])"
-        case .beatmap(let day), .voice(let day), .languages(let day, _): suffix = "-day\(day)"
+        case .beatmap(let day), .voice(let day), .languages(let day, _), .draft(let day), .render(let day): suffix = "-day\(day)"
         default: suffix = ""
         }
         url = paths.logs.appendingPathComponent("\(stamp)-\(kind.slug)\(suffix).log")
@@ -41,6 +41,14 @@ public final class RunLog: @unchecked Sendable {
         lock.withLock { try? handle?.write(contentsOf: Data(row.utf8)) }
     }
 
+    /// A file beside the log (an answer that could not be read, kept to see why): `<log>.<name>`.
+    @discardableResult
+    public func attach(_ name: String, _ text: String) -> URL {
+        let file = url.deletingPathExtension().appendingPathExtension(name)
+        try? text.write(to: file, atomically: true, encoding: .utf8)
+        return file
+    }
+
     public func step(_ name: String, day: Int? = nil) {
         lock.withLock {
             if let last = run.steps.indices.last, run.steps[last].finishedAt == nil { run.steps[last].finishedAt = Date() }
@@ -53,7 +61,7 @@ public final class RunLog: @unchecked Sendable {
 
     public var usage: TokenUsage { lock.withLock { run.usage } }
 
-    public func add(voice usage: VoiceUsage) { lock.withLock { run.voice = (run.voice ?? VoiceUsage(modelID: usage.modelID)) + usage } }
+    public func add(voice usage: VoiceUsage) { lock.withLock { run.voice = (run.voice ?? VoiceUsage(packID: usage.packID)) + usage } }
 
     public var voice: VoiceUsage? { lock.withLock { run.voice } }
 
@@ -70,7 +78,8 @@ public final class RunLog: @unchecked Sendable {
         default: line("✓ done")
         }
         let u = record.usage
-        line("tokens: \(u.input) in, \(u.output) out, \(u.cacheRead) from cache, \(u.cacheWrite) cached · ≈ $\(String(format: "%.2f", u.estimatedUSD(model: record.model)))")
+        if !u.isEmpty { line("model: \(record.model) · \(u.line)") }
+        line("run: \(TokenUsage.duration(record.finishedAt.map { $0.timeIntervalSince(record.startedAt) } ?? 0))")
         if let v = record.voice, !v.isEmpty { line("voice: \(v.line)") }
         try? JSONCoding.write(record, to: jsonURL)
         lock.withLock { try? handle?.close(); handle = nil }

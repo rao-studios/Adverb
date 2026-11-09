@@ -3,7 +3,8 @@
 //  AdverbAgents
 //
 //  WHAT: One run as the generation panel shows it: which campaign and day, the step, the progress,
-//        the latest thinking, the tokens so far, the last few log lines, and how it ended.
+//        the latest thinking, the tail of what the model is writing, the tokens so far, the last few
+//        log lines, and how it ended.
 //
 
 import AdverbCore
@@ -19,6 +20,10 @@ public struct RunProgress: Sendable, Equatable, Identifiable {
     public var step: String = "Starting"
     public var progress: Double = 0
     public var activity: String = ""
+    /// The last of what the model is writing (a page as it is written).
+    public var writing: String = ""
+    /// Characters written so far in the run.
+    public var written: Int = 0
     public var usage = TokenUsage()
     public var voice: VoiceUsage?
     public var log: [String] = []
@@ -34,10 +39,12 @@ public struct RunProgress: Sendable, Equatable, Identifiable {
     }
 }
 
-/// Run keys: "plan/<campaign>", "<campaign>/<day>", "beat/<campaign>/<day>", "voice/<campaign>/<day>".
+/// Run keys: "plan/<campaign>", "<campaign>/<day>" (a day written to its sheet), "render/<campaign>/<day>",
+/// "beat/<campaign>/<day>", "voice/<campaign>/<day>".
 public enum RunKey {
     public static func plan(_ campaign: UUID) -> String { "plan/\(campaign.uuidString)" }
     public static func build(_ campaign: UUID, _ day: Int) -> String { "\(campaign.uuidString)/\(day)" }
+    public static func render(_ campaign: UUID, _ day: Int) -> String { "render/\(campaign.uuidString)/\(day)" }
     public static func beat(_ campaign: UUID, _ day: Int) -> String { "beat/\(campaign.uuidString)/\(day)" }
     public static func voice(_ campaign: UUID, _ day: Int) -> String { "voice/\(campaign.uuidString)/\(day)" }
     /// Every voice run of a campaign starts with this.
@@ -49,7 +56,8 @@ public enum RunKey {
         case "plan": return ("Plan", parts.count > 1 ? UUID(uuidString: parts[1]) : nil, nil)
         case "beat": return ("Beatmap", parts.count > 1 ? UUID(uuidString: parts[1]) : nil, parts.count > 2 ? Int(parts[2]) : nil)
         case "voice": return ("Voice", parts.count > 1 ? UUID(uuidString: parts[1]) : nil, parts.count > 2 ? Int(parts[2]) : nil)
-        default: return ("Build", UUID(uuidString: parts.first ?? ""), parts.count > 1 ? Int(parts[1]) : nil)
+        case "render": return ("Render", parts.count > 1 ? UUID(uuidString: parts[1]) : nil, parts.count > 2 ? Int(parts[2]) : nil)
+        default: return ("Sheet", UUID(uuidString: parts.first ?? ""), parts.count > 1 ? Int(parts[1]) : nil)
         }
     }
 }
@@ -63,7 +71,7 @@ extension GenerationService.Center.State {
 
 extension RunKey {
     public static func dayRun(in runs: [String: RunProgress], _ campaign: UUID, _ day: Int) -> RunProgress? {
-        let candidates = [build(campaign, day), beat(campaign, day), voice(campaign, day)].compactMap { runs[$0] }
+        let candidates = [build(campaign, day), render(campaign, day), beat(campaign, day), voice(campaign, day)].compactMap { runs[$0] }
         return candidates.first { $0.phase == .running } ?? candidates.max { $0.startedAt < $1.startedAt }
     }
 }

@@ -24,11 +24,24 @@ struct RunCard: View {
                     Button("Stop") { AdverbRuntimeRoot.shared.cancelRun(run.key) }.buttonStyle(.adverbQuiet).controlSize(.small)
                 }
                 AdverbMeter(fraction: run.progress)
-                if !run.activity.isEmpty {
+                if !run.writing.isEmpty {
+                    // The page as the model on this Mac writes it, the last few lines.
+                    Text(Self.tail(run.writing, lines: 8)).adverbType(.codeSmall).foregroundStyle(Color.adverbInkDim)
+                        .lineLimit(8).frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.layer2)
+                        .background(Color.adverbPearl, in: RoundedRectangle(cornerRadius: AdverbRadius.control))
+                    Text("\(run.written.formatted()) characters written").adverbType(.fine).foregroundStyle(Color.adverbInkMuted)
+                } else if !run.activity.isEmpty {
                     Text(String(run.activity.suffix(320))).adverbType(.readingSmall).foregroundStyle(Color.adverbInkDim).lineLimit(5)
                 }
             }
         }
+    }
+}
+
+extension RunCard {
+    static func tail(_ text: String, lines: Int) -> String {
+        text.split(separator: "\n", omittingEmptySubsequences: false).suffix(lines).joined(separator: "\n")
     }
 }
 
@@ -49,7 +62,7 @@ struct ScenesCard: View {
                         }
                     }
                 }
-                Button("Build this day", action: build).buttonStyle(.adverb)
+                Button("Write this day's sheet", action: build).buttonStyle(.adverb)
             }
         }
     }
@@ -142,7 +155,7 @@ struct StatusCard: View {
                             Text("Posted \(posted.formatted(date: .abbreviated, time: .shortened))").adverbType(.caption).foregroundStyle(Color.adverbInkDim)
                         } else {
                             Button("Mark posted") { set(.posted, target.platform) }.buttonStyle(.adverbQuiet).controlSize(.small)
-                                .disabled(day.asset == nil)
+                                .disabled(day.asset?.renders.isEmpty ?? true)
                         }
                     }
                 }

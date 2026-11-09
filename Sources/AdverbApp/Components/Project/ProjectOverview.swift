@@ -70,7 +70,7 @@ struct ProjectOverview: View {
                                                 .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
                                         }
                                         Spacer()
-                                        AdverbStat(value: "\(campaign.builtCount)/\(campaign.days.count)", label: "built")
+                                        AdverbStat(value: "\(campaign.builtCount)/\(campaign.days.count)", label: campaign.sheetCount > 0 ? "built · \(campaign.sheetCount) at sheet" : "built")
                                         AdverbStat(value: "\(campaign.postedCount)", label: "posted")
                                         AdverbBadge(text: campaign.state.title, color: campaign.state == .live ? .adverbGold : .adverbInkDim, filled: campaign.state == .live)
                                     }

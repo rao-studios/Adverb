@@ -23,7 +23,7 @@ extension Onboarding {
                 steps
                 AdverbCard {
                     switch step {
-                    case .key: keyStep(state)
+                    case .models: modelsStep
                     case .workdir: workdirStep(state)
                     case .project: projectStep
                     }
@@ -39,6 +39,7 @@ extension Onboarding {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onReceive(configChanged) { _ in tick &+= 1 }
+        .onReceive(modelsChanged) { _ in tick &+= 1 }
     }
 
     private var steps: some View {
@@ -61,30 +62,32 @@ extension Onboarding {
         }
     }
 
-    @ViewBuilder private func keyStep(_ state: ConfigService.Center.State) -> some View {
+    @ViewBuilder private var modelsStep: some View {
+        let m = models.state
+        let set = m.recommended
+        let downloading = !m.downloading.isEmpty
         VStack(alignment: .leading, spacing: .layer3) {
-            Text("Adverb plans each month and writes each asset with Claude, using the rao-motion-assets skill. It needs your Claude API key.")
+            Text("Adverb plans each month, writes each page and speaks each voice-over on this Mac. Nothing is sent anywhere: download the models once, from Rao Studios on Hugging Face, and Adverb works offline from then on.")
                 .adverbType(.reading).foregroundStyle(Color.adverbInkSoft)
-            AdverbSecureField(placeholder: "sk-ant-…", text: $form.key)
-                .onSubmit(saveKey)
-            Text("Saved in your login Keychain (service nyc.rao.adverb). Never written to a file, never shown again in full. ANTHROPIC_API_KEY in the environment works too.")
+            FieldRow(label: "This Mac", value: "\(m.memoryGB) GB of memory · offered the set that fits")
+            VStack(alignment: .leading, spacing: .layer2) {
+                ForEach(set.all, id: \.id) { spec in
+                    ModelRow(spec: spec, state: m, recommended: spec.slot == .text)
+                }
+            }
+            Text("The writer is needed to begin; the voices are needed only for narrated campaigns. Models are kept in ~/.rao/models, shared with Craft and AII, so one already there is not downloaded again.")
                 .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
             HStack {
                 Spacer()
-                if form.saving { ProgressView().controlSize(.small) }
-                Button("Save key", action: saveKey).buttonStyle(.adverb).keyboardShortcut(.defaultAction)
-                    .disabled(form.key.trimmingCharacters(in: .whitespaces).isEmpty || form.saving)
+                if downloading { ProgressView().controlSize(.small) }
+                Button(downloading ? "Downloading…" : "Download all (\(ModelRow.size(set.all.filter { !m.isInstalled($0.id) }.reduce(0) { $0 + $1.downloadBytes })))") {
+                    AdverbRuntimeRoot.shared.downloadRecommended()
+                }
+                .buttonStyle(.adverb).keyboardShortcut(.defaultAction)
+                .disabled(downloading || set.all.allSatisfy { m.isInstalled($0.id) })
             }
         }
-    }
-
-    private func saveKey() {
-        let key = form.key
-        form.saving = true
-        Task {
-            if await AdverbRuntimeRoot.shared.saveKey(key) { form.key = "" }
-            form.saving = false
-        }
+        .task { await AdverbRuntimeRoot.shared.refreshModels() }
     }
 
     @ViewBuilder private func workdirStep(_ state: ConfigService.Center.State) -> some View {
@@ -95,9 +98,8 @@ extension Onboarding {
                 FieldRow(label: "Suggested", value: "/Volumes/T9 (your T9)")
             }
             HStack {
-                if state.keySource != nil {
-                    Label(state.keyMasked ?? "Key saved", systemImage: "key").adverbType(.caption).foregroundStyle(Color.adverbInkDim)
-                }
+                Label("\(ModelCatalog.spec(state.settings.textModelID)?.title ?? ModelInfo.shortName(state.settings.textModelID)) is on this Mac", systemImage: "cpu")
+                    .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
                 Spacer()
                 Button("Choose folder…") {
                     let start = FileManager.default.fileExists(atPath: "/Volumes/T9") ? URL(fileURLWithPath: "/Volumes/T9") : nil

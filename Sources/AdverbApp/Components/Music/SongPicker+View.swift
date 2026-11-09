@@ -172,8 +172,8 @@ extension SongPicker {
                 }
                 .buttonStyle(.adverb)
             }
-            Text(mode == .warp ? "Each scene start moves to the nearest downbeat (at most 15% of a scene), the end card lands on the last downbeat before the close, and the coin and texture tap with the beat. No call to Claude."
-                               : "Claude rewrites only the page's timing against the beat list; Adverb checks that nothing else changed, and warps instead if it did.")
+            Text(mode == .warp ? "Each scene start moves to the nearest downbeat (at most 15% of a scene), the end card lands on the last downbeat before the close, and the coin and texture tap with the beat. The writer is not asked."
+                               : "The writer rewrites only the page's timing against the beat list; Adverb checks that nothing else changed, and warps instead if it did.")
                 .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
         }
         .padding(.layer5)

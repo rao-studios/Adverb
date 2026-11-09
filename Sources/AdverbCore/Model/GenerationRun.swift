@@ -2,15 +2,21 @@
 //  GenerationRun.swift
 //  AdverbCore
 //
-//  WHAT: One run of the generator, as its log records it: what it did, step by step, what it cost,
-//        and how it ended. Written beside the campaign (logs/) when the run ends.
+//  WHAT: One run of the generator, as its log records it: what it did, step by step, how much the
+//        model read and wrote and how long it took, and how it ended. Written beside the campaign
+//        (logs/) when the run ends.
 //
 
 import Foundation
 
 public enum RunKind: Codable, Sendable, Equatable, Hashable {
     case plan
+    /// The ElevenLabs-era build of a day, page to video in one run (older logs).
     case build(days: [Int])
+    /// A day written: page, voice-over, stills, review, contact sheet.
+    case draft(day: Int)
+    /// A day rendered from its sheet: videos, captions, the final sheet.
+    case render(day: Int)
     case beatmap(day: Int)
     /// A day's English voice-over: scripted, recorded and mixed.
     case voice(day: Int)
@@ -21,6 +27,8 @@ public enum RunKind: Codable, Sendable, Equatable, Hashable {
         switch self {
         case .plan: "Plan"
         case .build(let days): days.count == 1 ? "Build" : "Build \(days.count) days"
+        case .draft: "Sheet"
+        case .render: "Render"
         case .beatmap: "Beatmap"
         case .voice: "Voice-over"
         case .languages(_, let languages): languages.count == 1 ? languages[0].title : "\(languages.count) languages"
@@ -31,6 +39,8 @@ public enum RunKind: Codable, Sendable, Equatable, Hashable {
         switch self {
         case .plan: "plan"
         case .build: "build"
+        case .draft: "draft"
+        case .render: "render"
         case .beatmap: "beatmap"
         case .voice: "voice"
         case .languages: "languages"
@@ -54,47 +64,62 @@ public struct StepRecord: Codable, Sendable, Equatable, Hashable {
     }
 }
 
+/// What a model read and wrote. `input` is the prompt it read, `cacheRead` the part of it already
+/// in its cache from the call before (not read again), `output` what it wrote, thinking included.
 public struct TokenUsage: Codable, Sendable, Equatable, Hashable {
     public var input: Int
     public var output: Int
     public var cacheRead: Int
+    /// Unused on this Mac; kept so older logs read.
     public var cacheWrite: Int
+    /// Seconds spent reading the prompt and writing the answer.
+    public var seconds: Double
 
-    public init(input: Int = 0, output: Int = 0, cacheRead: Int = 0, cacheWrite: Int = 0) {
-        self.input = input; self.output = output; self.cacheRead = cacheRead; self.cacheWrite = cacheWrite
+    public init(input: Int = 0, output: Int = 0, cacheRead: Int = 0, cacheWrite: Int = 0, seconds: Double = 0) {
+        self.input = input; self.output = output; self.cacheRead = cacheRead; self.cacheWrite = cacheWrite; self.seconds = seconds
+    }
+
+    enum CodingKeys: String, CodingKey { case input, output, cacheRead, cacheWrite, seconds }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        input = (try? c.decode(Int.self, forKey: .input)) ?? 0
+        output = (try? c.decode(Int.self, forKey: .output)) ?? 0
+        cacheRead = (try? c.decode(Int.self, forKey: .cacheRead)) ?? 0
+        cacheWrite = (try? c.decode(Int.self, forKey: .cacheWrite)) ?? 0
+        seconds = (try? c.decode(Double.self, forKey: .seconds)) ?? 0
     }
 
     public static func + (a: TokenUsage, b: TokenUsage) -> TokenUsage {
-        TokenUsage(input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, cacheWrite: a.cacheWrite + b.cacheWrite)
+        TokenUsage(input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead,
+                   cacheWrite: a.cacheWrite + b.cacheWrite, seconds: a.seconds + b.seconds)
     }
 
     public var isEmpty: Bool { input + output + cacheRead + cacheWrite == 0 }
 
-    /// Share of prompt tokens served from cache.
+    /// Share of the prompt that came from the cache.
     public var cacheHitRate: Double {
-        let prompt = input + cacheRead + cacheWrite
+        let prompt = input + cacheRead
         return prompt == 0 ? 0 : Double(cacheRead) / Double(prompt)
     }
 
-    /// An estimate in US dollars at the model's list price (per million tokens): cache writes at
-    /// 1.25× input for the 5-minute TTL and 2× for the hour, reads at 0.1×.
-    public func estimatedUSD(model: String, cacheTTLHour: Bool = true) -> Double {
-        let (inPrice, outPrice) = Self.prices(model)
-        let writeFactor = cacheTTLHour ? 2.0 : 1.25
-        let dollars = Double(input) * inPrice + Double(output) * outPrice
-            + Double(cacheWrite) * inPrice * writeFactor + Double(cacheRead) * inPrice * 0.1
-        return dollars / 1_000_000
+    /// Tokens written per second, over the whole call.
+    public var tokensPerSecond: Double { seconds > 0 ? Double(output) / seconds : 0 }
+
+    /// "24,812 read (20,104 from cache), 6,210 written in 4 min 12 s".
+    public var line: String {
+        var parts = ["\((input + cacheRead).formatted()) read"]
+        if cacheRead > 0 { parts[0] += " (\(cacheRead.formatted()) from cache)" }
+        parts.append("\(output.formatted()) written")
+        return parts.joined(separator: ", ") + (seconds > 0 ? " in \(Self.duration(seconds))" : "")
     }
 
-    static func prices(_ model: String) -> (Double, Double) {
-        switch model {
-        case "claude-fable-5-1", "claude-fable-5": (10, 50)
-        case "claude-opus-5-5": (4, 20)
-        case "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7": (5, 25)
-        case "claude-sonnet-5-5", "claude-sonnet-5": (2, 10)
-        case "claude-haiku-5-5": (0.10, 0.50)
-        default: (4, 20)
-        }
+    /// "48 s", "4 min 12 s", "1 h 3 min".
+    public static func duration(_ seconds: Double) -> String {
+        let s = Int(seconds.rounded())
+        if s < 60 { return "\(s) s" }
+        if s < 3600 { return "\(s / 60) min \(s % 60) s" }
+        return "\(s / 3600) h \((s % 3600) / 60) min"
     }
 }
 
@@ -108,7 +133,7 @@ public struct GenerationRun: Codable, Sendable, Equatable, Identifiable, Hashabl
     public var outcome: RunOutcome
     public var steps: [StepRecord]
     public var usage: TokenUsage
-    /// What the run spent at ElevenLabs, when it spoke.
+    /// What the run spoke, when it did.
     public var voice: VoiceUsage?
     /// Relative to the campaign folder.
     public var logPath: String

@@ -92,6 +92,8 @@ struct CampaignRow: View {
 
     private var subtitle: String {
         guard campaign.isPlanned else { return "\(campaign.state.title) · not planned" }
-        return "\(campaign.state.title) · \(campaign.builtCount)/\(campaign.days.count) built" + (campaign.postedCount > 0 ? " · \(campaign.postedCount) posted" : "")
+        return "\(campaign.state.title) · \(campaign.builtCount)/\(campaign.days.count) built"
+            + (campaign.sheetCount > 0 ? " · \(campaign.sheetCount) \(campaign.sheetCount == 1 ? "sheet" : "sheets")" : "")
+            + (campaign.postedCount > 0 ? " · \(campaign.postedCount) posted" : "")
     }
 }

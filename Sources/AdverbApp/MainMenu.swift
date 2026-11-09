@@ -31,7 +31,8 @@ enum MainMenu {
     ]
 
     static let campaignItems: [Item] = [
-        Item(title: "Build Remaining Days", action: #selector(AdverbAppDelegate.buildRemaining(_:)), key: "b"),
+        Item(title: "Write Remaining Sheets", action: #selector(AdverbAppDelegate.buildRemaining(_:)), key: "b"),
+        Item(title: "Render Approved Days", action: #selector(AdverbAppDelegate.renderApproved(_:)), key: "r"),
         Item(title: "Export the Month…", action: #selector(AdverbAppDelegate.exportCampaign(_:)), key: "e", modifiers: [.command, .shift]),
     ]
 

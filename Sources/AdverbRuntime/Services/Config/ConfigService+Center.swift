@@ -11,7 +11,8 @@ import Granite
 /// What stands between the person and their projects, in order.
 public enum Gate: Sendable, Equatable {
     case loading
-    case needsKey
+    /// No writer is on this Mac yet: onboarding's first step downloads one.
+    case needsModels
     case needsWorkdir
     case driveNotMounted(String)
     case workdirMissing(String)
@@ -40,22 +41,11 @@ extension ConfigService {
 
         public struct State: TransientState {
             public var settings = AdverbSettings()
-            public var keySource: KeySource?
-            public var keyMasked: String?
-            public var keyChecked: Bool?
-            /// The ElevenLabs key: optional, never a gate.
-            public var voiceKeySource: KeySource?
-            public var voiceKeyMasked: String?
-            public var voiceKeyChecked: Bool?
-            public var voiceQuota: VoiceQuota?
             public var gate: Gate = .loading
             public var toolchain: [ToolCheck] = []
             public var notice: String?
             public var problem: String?
             public init() {}
-
-            public var hasKey: Bool { keySource != nil }
-            public var hasVoiceKey: Bool { voiceKeySource != nil }
         }
 
         @Event public var set: Set.Reducer

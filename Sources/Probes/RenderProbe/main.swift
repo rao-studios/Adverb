@@ -54,6 +54,13 @@ if args.count >= 2, ["sheet", "grab", "inspect", "beats", "remux"].contains(args
     done.wait()
     exit(0)
 }
+// `check <page.html>`: the page's scripts parsed (what the writer is told when one does not).
+if args.count >= 3, args[1] == "check" {
+    let html = (try? String(contentsOf: URL(fileURLWithPath: args[2]), encoding: .utf8)) ?? ""
+    let problems = ScriptCheck.problems(html)
+    print(problems.isEmpty ? "scripts parse" : problems.joined(separator: "\n"))
+    exit(problems.isEmpty ? 0 : 1)
+}
 // `text <page.html>`: when each piece of text arrives, what a voice-over is timed to. WebKit
 // needs the main run loop, so it runs inside the app's, as the renders do.
 if args.count >= 3, args[1] == "text" {
@@ -69,6 +76,25 @@ if args.count >= 3, args[1] == "text" {
             exit(0)
         } catch {
             FileHandle.standardError.write(Data("text failed: \(error)\n".utf8)); exit(1)
+        }
+    }
+    app.run()
+}
+// `probe <page.html> [read-access folder]`: what the renderer reads off a page before it renders
+// (its length, scenes, the kit faces it can use, what threw): the draft's checks, alone.
+if args.count >= 3, args[1] == "probe" {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.prohibited)
+    Task { @MainActor in
+        do {
+            let page = URL(fileURLWithPath: args[2]).standardizedFileURL
+            let access = args.count >= 4 ? URL(fileURLWithPath: args[3], isDirectory: true).standardizedFileURL : page.deletingLastPathComponent()
+            let info = try await PageRenderer.probe(page: page, readAccess: access)
+            print("DUR \(info.dur) · scenes \(info.scenes) · errors \(info.errors)")
+            for (face, ok) in info.fonts.sorted(by: { $0.key < $1.key }) { print("\(ok ? "loaded " : "MISSING") \(face)") }
+            exit(0)
+        } catch {
+            FileHandle.standardError.write(Data("probe failed: \(error)\n".utf8)); exit(1)
         }
     }
     app.run()
@@ -169,7 +195,7 @@ if args.count >= 5, args[1] == "fixture" {
     app.run()
 }
 
-// `finish <campaign-dir> <sample-page.html> [song]`: the whole non-Claude build of one day.
+// `finish <campaign-dir> <sample-page.html> [song]`: the whole build of one day after its page.
 if args.count >= 4, args[1] == "finish" {
     let app = NSApplication.shared
     app.setActivationPolicy(.prohibited)

@@ -2,9 +2,10 @@
 //  Language.swift
 //  AdverbCore
 //
-//  WHAT: The languages a voice-over speaks: the 29 that ElevenLabs' Multilingual v2 reads, by ISO
-//        639-1 code (Filipino is "fil", as ElevenLabs names it). English is the source every asset
-//        is written in; the rest are targets, made after the English is confirmed.
+//  WHAT: The languages a voice-over can be written in: 29, by ISO 639-1 code (Filipino is "fil").
+//        English is the source every asset is written in; the rest are targets, translated by the
+//        writer after the English is confirmed, and spoken where a voice pack on this Mac speaks
+//        them (SpeechPackInfo.languages: English today).
 //  PIN:  Cases are English names, never the code: Indonesian's code is "id", which an `id` case
 //        would collide with Identifiable.
 //
