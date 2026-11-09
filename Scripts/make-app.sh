@@ -87,6 +87,25 @@ else
     if [ -n "$IDENTITY" ]; then echo "▸ codesign (stable identity: $IDENTITY)"; else IDENTITY="-"; echo "▸ codesign (ad-hoc)"; fi
     FLAGS=(--force --sign "$IDENTITY")
 fi
+# Inside-out: nested code first, then the app. mlx.metallib arrives ad-hoc signed
+# (build-metallib.sh), and codesign treats every *.bundle as nested code: a release signed only at
+# the top fails notarization on them. SwiftPM's resource bundles here use the deep layout
+# (Contents/Info.plist), which signs as it is; a flat one gets a root Info.plist (Craft's make-app).
+find "$APP_DIR/Contents" \( -name mlx.metallib -o -name default.metallib \) -type f | while read -r lib; do
+    xattr -c "$lib" 2>/dev/null || true
+    codesign "${FLAGS[@]}" "$lib"
+done
+find "$APP_DIR/Contents" -maxdepth 3 -name '*.bundle' -type d | while read -r bundle; do
+    name="$(basename "$bundle" .bundle)"
+    if [ ! -f "$bundle/Contents/Info.plist" ] && [ ! -f "$bundle/Info.plist" ]; then
+        /usr/libexec/PlistBuddy \
+            -c "Add :CFBundleIdentifier string nyc.rao.adverb.res.$(echo "$name" | tr '_' '-')" \
+            -c "Add :CFBundleName string $name" -c "Add :CFBundlePackageType string BNDL" \
+            -c "Add :CFBundleInfoDictionaryVersion string 6.0" "$bundle/Info.plist" >/dev/null
+    fi
+    xattr -cr "$bundle" 2>/dev/null || true
+    codesign "${FLAGS[@]}" "$bundle"
+done
 codesign "${FLAGS[@]}" --entitlements Support/Adverb.entitlements "$APP_DIR"
 
 version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_DIR/Contents/Info.plist")"

@@ -65,6 +65,9 @@ fastlane/test_output
 /build/
 /.build/
 /pkg/
+# Release packages, their manifests and notes (Scripts/release/release.sh builds them in build/;
+# the .pkg is attached to the GitHub release, never committed)
+*.pkg
 # A test fixture: a project's build folder, which the context digest must skip.
 !Tests/AdverbCoreTests/Fixtures/context-sample/.build/
 .swiftpm/

@@ -129,6 +129,18 @@ most of the time: a 15 s page is about 2,000 tokens, a 30 s one more. The times 
 while other apps held the GPU, so a quiet Mac is faster. Thinking first (Settings › Models) makes a
 better page and a slower one.
 
+## Releasing
+
+```sh
+Scripts/release/release.sh            # the next patch release: 0.0.0 first, then 0.0.1, …
+Scripts/release/release.sh --minor    # or --major, or an exact version: release.sh 1.2.0
+```
+
+It takes the version from the git tags, commits it to `Support/Info.plist`, builds and signs the app
+with Rao Studios' Developer ID, packages it, has Apple notarize the package and staples it, then
+tags the commit, pushes, and publishes a GitHub release with the `.pkg` attached. Nothing is tagged
+or published unless notarization succeeds. The package is built in `build/`, which git ignores.
+
 ## Where things live
 
 | What | Where |

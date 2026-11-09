@@ -1,0 +1,23 @@
+#!/bin/bash
+# WHAT: Before the install, quit the Adverb that is running for whoever is at the Mac, so the new
+#       copy replaces a closed app. postinstall opens the new one.
+# PIN:  SIGTERM first, which AppKit turns into a quit; SIGKILL only if it is still there after ten
+#       seconds. Runs as root. Skipped for command-line installs (MDM, `installer -pkg`), which
+#       postinstall never relaunches. Never fails the install.
+# PIN:  BY PATH, NEVER BY NAME: only /Applications/Adverb.app's process goes, never a dev build.
+
+[ -n "${COMMAND_LINE_INSTALL:-}" ] && exit 0
+
+user="$(stat -f %Su /dev/console)"
+[ -z "$user" ] || [ "$user" = "root" ] || [ "$user" = "loginwindow" ] && exit 0
+uid="$(id -u "$user" 2>/dev/null)" || exit 0
+
+APP_EXECUTABLE='^/Applications/Adverb\.app/Contents/MacOS/Adverb( |$)'
+pids="$(pgrep -f -U "$uid" "$APP_EXECUTABLE")" || exit 0
+kill -TERM $pids 2>/dev/null || true
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+    pgrep -f -U "$uid" "$APP_EXECUTABLE" >/dev/null || exit 0
+    sleep 1
+done
+pkill -KILL -f -U "$uid" "$APP_EXECUTABLE" 2>/dev/null || true
+exit 0

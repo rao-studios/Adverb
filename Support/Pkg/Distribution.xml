@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The installer's rules: Apple silicon (MLX, and the app is an arm64 build) and macOS 26 (the
+     app's floor; release.sh holds it to Support/Info.plist). One choice, installed to /Applications. -->
+<installer-gui-script minSpecVersion="2">
+    <title>Adverb</title>
+    <options customize="never" require-scripts="false" hostArchitectures="arm64"/>
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="26.0"/>
+        </allowed-os-versions>
+    </volume-check>
+    <choices-outline>
+        <line choice="default">
+            <line choice="nyc.rao.adverb.pkg"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="nyc.rao.adverb.pkg" visible="false">
+        <pkg-ref id="nyc.rao.adverb.pkg"/>
+    </choice>
+    <pkg-ref id="nyc.rao.adverb.pkg">Adverb-component.pkg</pkg-ref>
+</installer-gui-script>
