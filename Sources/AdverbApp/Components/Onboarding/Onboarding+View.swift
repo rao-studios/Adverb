@@ -75,8 +75,9 @@ extension Onboarding {
                     ModelRow(spec: spec, state: m, recommended: spec.slot == .text)
                 }
             }
-            Text("The writer is needed to begin; the voices are needed only for narrated campaigns. Models are kept in ~/.rao/models, shared with Craft and AII, so one already there is not downloaded again.")
+            Text("The writer is needed to begin; the voices are needed only for narrated campaigns. Adverb looks through the folder below for models any Rao app already downloaded and uses them where they sit; what is missing downloads there.")
                 .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
+            ModelsFolderField(saved: config.state.settings.modelsFolder)
             HStack {
                 Spacer()
                 if downloading { ProgressView().controlSize(.small) }

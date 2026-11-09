@@ -86,9 +86,13 @@ struct ModelsPage: View {
         }
         AdverbCard {
             VStack(alignment: .leading, spacing: .layer2) {
-                SectionLabel("On this Mac")
-                FieldRow(label: "Kept in", value: "~/.rao/models (shared with Craft and AII)")
-                FieldRow(label: "Using", value: ModelRow.size(models.totalBytes))
+                SectionLabel("Where models are kept")
+                ModelsFolderField(saved: state.settings.modelsFolder)
+                Text(state.settings.modelsFolder == nil
+                     ? "Adverb looks through this folder for models any Rao app has already downloaded, at any path, and uses them where they sit. A mirror's upstream counts when its bytes are the same. What is missing downloads here."
+                     : "Adverb looks through this folder, and ~/.rao/models, for models any Rao app has already downloaded, and uses them where they sit. What is missing downloads here.")
+                    .adverbType(.caption).foregroundStyle(Color.adverbInkDim)
+                FieldRow(label: "In use", value: ModelRow.size(models.totalBytes) + " for the models above")
                 Button("Look again") { Task { await root.refreshModels() } }.buttonStyle(.adverbLink)
             }
         }

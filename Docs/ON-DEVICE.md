@@ -97,6 +97,21 @@ Every architecture offered is in Frigate's vendored registries (mlx-swift-lm 3.3
 `nemotron_h`, `mistral3`. A model whose type is not (Mistral Small 4's `mistral4`, for one) does not
 load, whatever its scores.
 
+### Where they are kept, and found
+
+Settings › Models names one folder, `~/.rao/models` unless the person picks another. Downloads go
+into it (`huggingface/snapshots/models/<org>/<name>`), and `ModelSearch` looks through all of it,
+plus `~/.rao/models` when another folder is chosen, before anything downloads. A folder is a model
+when it holds `config.json` (or a voice pack's `vocab_index.json`), and it is a catalog model when
+the Hub client's metadata beside those files names the model's pinned commit, wherever the folder
+sits. A mirror that copies its upstream byte for byte names that upstream in `sameWeightsAs`, so
+mlx-community's Gemma 4 at the mirrored commit is Adverb's Gemma 4 with no second download.
+Removing a model removes every copy the search found; the confirmation lists them.
+
+```sh
+.build/debug/adverb-model-probe models [--folder <path>]   # what the search finds, and where
+```
+
 ### Publishing a mirror
 
 ```sh

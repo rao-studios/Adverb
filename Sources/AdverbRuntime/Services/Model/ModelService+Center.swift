@@ -18,6 +18,8 @@ extension ModelService {
             public var installed: Swift.Set<String> = []
             /// Bytes on disk, by id.
             public var sizes: [String: Int64] = [:]
+            /// Where each installed model was found, the copy it loads from first.
+            public var copies: [String: [ModelCopy]] = [:]
             /// Downloads under way: id → fraction done.
             public var downloading: [String: Double] = [:]
             /// The last thing that went wrong with a model, by id.

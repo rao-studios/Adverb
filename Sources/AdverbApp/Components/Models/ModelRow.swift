@@ -39,6 +39,9 @@ struct ModelRow: View {
                 }
                 Text(spec.summary).adverbType(.caption).foregroundStyle(Color.adverbInkSoft).fixedSize(horizontal: false, vertical: true)
                 status
+                if state.isInstalled(spec.id), let foundLine {
+                    Text(foundLine).adverbType(.caption).foregroundStyle(Color.adverbInkDim).textSelection(.enabled)
+                }
                 if let problem = state.problems[spec.id] {
                     Text(problem).adverbType(.caption).foregroundStyle(Color.adverbError).textSelection(.enabled)
                 }
@@ -47,8 +50,23 @@ struct ModelRow: View {
         .confirmationDialog("Remove \(spec.title)?", isPresented: $confirmRemove) {
             Button("Remove", role: .destructive) { Task { await AdverbRuntimeRoot.shared.removeModel(spec) } }
         } message: {
-            Text("It is removed from this Mac for every Rao app that uses it (\(spec.sizeLabel)). It can be downloaded again.")
+            Text(removeMessage)
         }
+    }
+
+    /// Where the copy it loads from sits, when that is not its own download (another app's copy, or
+    /// the repository it mirrors).
+    private var foundLine: String? {
+        guard let copy = state.copies[spec.id]?.first, !copy.isOwnPath else { return nil }
+        let path = ModelHome.display(copy.folder)
+        if copy.isUpstream, let source = spec.sameWeights { return "Using \(source.repo)'s copy, the same weights: \(path)" }
+        return "Using the copy at \(path)"
+    }
+
+    private var removeMessage: String {
+        let paths = (state.copies[spec.id] ?? []).map { ModelHome.display($0.folder) }
+        let what = paths.isEmpty ? "It is removed" : paths.count == 1 ? "\(paths[0]) is removed" : "Its \(paths.count) copies (\(paths.joined(separator: ", "))) are removed"
+        return "\(what) from this Mac, for every Rao app that uses \(paths.count > 1 ? "them" : "it"). It can be downloaded again."
     }
 
     private var sizeLine: String {

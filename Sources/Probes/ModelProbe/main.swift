@@ -15,6 +15,9 @@
 //    adverb-model-probe render --campaign <campaign folder> --day N
 //    adverb-model-probe speak  [--pack <id>] [--voice af_heart] [--out line.wav] "<text>"
 //    adverb-model-probe download --model <repo> [--revision <commit>] | --voice-pack paradee-af-heart|kokoro-82m-en
+//    adverb-model-probe models [--folder <path>]                (where each catalog model is found, as the app finds it)
+//
+//  The models folder is the app's (Settings › Models, ~/.rao/models by default); --folder names another.
 //
 //  A campaign folder is <workdir>/Adverb/<project>/campaigns/<id>. The probe writes to it as the
 //  app does: run it on a copy, never on a campaign you are posting from.
@@ -113,9 +116,25 @@ guard let command = args.first else {
 
 let app = NSApplication.shared
 app.setActivationPolicy(.prohibited)
+ModelHome.use(value("--folder").map(ModelHome.url) ?? AdverbSettings.load().modelsFolderURL)
+
 Task { @MainActor in
     await timed {
         switch command {
+        case "models":
+            print("Looking in " + ModelHome.searchRoots().map(ModelHome.display).joined(separator: ", "))
+            let folders = ModelSearch.scan(ModelHome.searchRoots())
+            for spec in ModelCatalog.all {
+                let copies = ModelSearch.copies(of: spec, in: folders,
+                                                isComplete: spec.slot == .speech ? VoiceLibrary.isComplete : ModelSearch.isCompleteMLX)
+                guard !copies.isEmpty else { print("  –  \(spec.title): not on this Mac (\(spec.sizeLabel) to download)"); continue }
+                for (i, copy) in copies.enumerated() {
+                    let how = copy.isUpstream ? "the same weights, as \(spec.sameWeights?.repo ?? "its upstream")" : copy.isOwnPath ? "its own copy" : "a copy at another path"
+                    print("  \(i == 0 ? "✓" : " ")  \(spec.title): \(ModelHome.display(copy.folder)) · \(how)"
+                          + String(format: " · %.1f GB", Double(ModelInstaller.size(of: copy.folder)) / 1_073_741_824) + (i == 0 && copies.count > 1 ? " · loads from this" : ""))
+                }
+            }
+
         case "download" where value("--voice-pack") != nil:
             guard let spec = ModelCatalog.speechSpec(pack: value("--voice-pack")!) else { fail("no voice pack \(value("--voice-pack")!)") }
             let folder = try await VoicePackInstaller.download(spec) { p in print(String(format: "  %.0f %%", p * 100)) }

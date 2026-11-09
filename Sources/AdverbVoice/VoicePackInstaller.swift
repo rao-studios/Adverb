@@ -29,9 +29,9 @@ public enum VoicePackInstaller {
         return folder
     }
 
+    /// Removes every copy of the pack the search finds.
     public static func remove(_ spec: ModelSpec) throws {
-        let folder = ModelHome.folder(spec.id)
         VoiceLibrary.shared.unloadAll()
-        if FileManager.default.fileExists(atPath: folder.path) { try FileManager.default.removeItem(at: folder) }
+        for copy in VoiceLibrary.copies(of: spec) { try FileManager.default.removeItem(at: copy.folder) }
     }
 }

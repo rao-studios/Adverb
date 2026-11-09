@@ -14,7 +14,7 @@ extension ModelService {
 
         public struct Meta: GranitePayload {
             public enum Kind: Sendable {
-                case scanned(installed: Swift.Set<String>, sizes: [String: Int64])
+                case scanned(installed: Swift.Set<String>, sizes: [String: Int64], copies: [String: [ModelCopy]])
                 /// Nil: the download ended.
                 case downloading(String, Double?)
                 case problem(String, String?)

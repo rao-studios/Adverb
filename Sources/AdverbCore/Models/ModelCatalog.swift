@@ -52,14 +52,23 @@ public struct ModelSpec: Sendable, Equatable, Hashable, Identifiable {
     public var upstream: String
     /// A voice pack's id (the speech slot): what a campaign's voice names.
     public var packID: String?
+    /// The repository and commit this mirror copies byte for byte ("org/name@<40 hex>"): a copy of
+    /// that, already on this Mac, is this model (ModelSearch). Nil for Rao's own conversions.
+    public var sameWeightsAs: String?
 
     public init(id: String, revision: String?, slot: ModelSlot, title: String, summary: String, family: String,
                 downloadBytes: Int64, minimumMemoryGB: Int, contextTokens: Int = 32_768, acceptsImages: Bool = false,
-                license: String = "Apache-2.0", upstream: String, packID: String? = nil) {
+                license: String = "Apache-2.0", upstream: String, packID: String? = nil, sameWeightsAs: String? = nil) {
         self.id = id; self.revision = revision; self.slot = slot; self.title = title; self.summary = summary
         self.family = family; self.downloadBytes = downloadBytes; self.minimumMemoryGB = minimumMemoryGB
         self.contextTokens = contextTokens; self.acceptsImages = acceptsImages; self.license = license
-        self.upstream = upstream; self.packID = packID
+        self.upstream = upstream; self.packID = packID; self.sameWeightsAs = sameWeightsAs
+    }
+
+    /// `sameWeightsAs`, split.
+    public var sameWeights: (repo: String, commit: String)? {
+        guard let value = sameWeightsAs, let at = value.lastIndex(of: "@") else { return nil }
+        return (String(value[..<at]), String(value[value.index(after: at)...]))
     }
 
     public var isInstallable: Bool { revision != nil }
@@ -94,7 +103,8 @@ public enum ModelCatalog {
         id: "rao-studios/gemma-4-31b-it-mlx-4bit", revision: "f8655066591a70b6c39e00517e0751bb38bc4b00", slot: .text, title: "Gemma 4 31B",
         summary: "The default writer: plans, pages and voice-overs in the most natural prose of the set, and it reads the stills itself. Google's, Apache-2.0.",
         family: "gemma4", downloadBytes: 18_444_436_193, minimumMemoryGB: 32, contextTokens: 262_144, acceptsImages: true,
-        upstream: "mlx-community/gemma-4-31b-it-4bit@696d436c404745a59f30e4939a658162b0a9e57f")
+        upstream: "mlx-community/gemma-4-31b-it-4bit@696d436c404745a59f30e4939a658162b0a9e57f",
+        sameWeightsAs: "mlx-community/gemma-4-31b-it-4bit@696d436c404745a59f30e4939a658162b0a9e57f")
 
     public static let nemotronSuper = ModelSpec(
         id: "rao-studios/NVIDIA-Nemotron-3-Super-120B-A12B-mlx-4bit", revision: "e3a66d8cfc95fa391eacc718aa5971df160cd4f1",

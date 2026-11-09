@@ -2,9 +2,10 @@
 //  ModelInstaller.swift
 //  AdverbModels
 //
-//  WHAT: A catalog model on this Mac or not, fetched at its pinned commit into the stack's shared
-//        home (Frigate's HubDownloader: snapshots/models/<org>/<name>, a copy any Rao app fetched
-//        is used where it sits), and removed again.
+//  WHAT: A catalog model on this Mac or not, fetched at its pinned commit into the models folder
+//        (Frigate's HubDownloader: snapshots/models/<org>/<name>), and removed again. A copy already
+//        in the folders ModelHome searches — any Rao app's, at any path, or the upstream a mirror
+//        copies byte for byte — is used where it sits (ModelSearch).
 //  PIN:  Weights are safetensors and nothing else; no Python a repository ships is fetched.
 //  PIN:  Only a pinned mirror is downloaded (a revision of 40 hex digits). A catalog entry whose
 //        mirror is not published yet says so instead of fetching something unreviewed.
@@ -25,15 +26,24 @@ public enum ModelInstaller {
         HubDownloader.materializedSnapshot(id: id, revision: revision, matching: patterns, roots: HubDownloader.snapshotRoots(home: home))
     }
 
-    public static func isInstalled(_ spec: ModelSpec) -> Bool { folder(spec.id, revision: spec.revision) != nil }
+    /// Every copy of a catalog model in the models folders, the one it loads from first.
+    public static func copies(of spec: ModelSpec) -> [ModelCopy] {
+        ModelSearch.copies(of: spec, roots: ModelHome.searchRoots(), isComplete: ModelSearch.isCompleteMLX)
+    }
 
-    /// The model's folder: a path, or a repository on this Mac (at its catalog commit when it has one).
+    public static func copy(of spec: ModelSpec) -> ModelCopy? { copies(of: spec).first }
+
+    public static func isInstalled(_ spec: ModelSpec) -> Bool { copy(of: spec) != nil }
+
+    /// The model's folder: a path; a catalog model's copy, wherever it sits; else any repository
+    /// on this Mac by its name (the probe's trials).
     public static func resolve(_ idOrPath: String) -> URL? {
         if idOrPath.hasPrefix("/") || idOrPath.hasPrefix("~") {
             let url = URL(fileURLWithPath: (idOrPath as NSString).expandingTildeInPath, isDirectory: true)
             return FileManager.default.fileExists(atPath: url.appendingPathComponent("config.json").path) ? url : nil
         }
-        return folder(idOrPath, revision: ModelCatalog.spec(idOrPath)?.revision) ?? folder(idOrPath)
+        if let spec = ModelCatalog.spec(idOrPath), spec.slot != .speech { return copy(of: spec)?.folder }
+        return folder(idOrPath)
     }
 
     public static func download(_ spec: ModelSpec, progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
@@ -50,8 +60,14 @@ public enum ModelInstaller {
         }
     }
 
-    /// Removes the repository's copy in the stack's home (for every Rao app that uses it).
+    /// Removes every copy of a catalog model the search finds (for every Rao app that uses it).
+    public static func remove(_ spec: ModelSpec) throws {
+        for copy in copies(of: spec) { try FileManager.default.removeItem(at: copy.folder) }
+    }
+
+    /// Removes a repository by its name from the models folder (the probe's trials).
     public static func remove(_ id: String) throws {
+        if let spec = ModelCatalog.spec(id) { return try remove(spec) }
         for root in HubDownloader.ownRoots(home: home) {
             let folder = root.appendingPathComponent("models").appendingPathComponent(id)
             if FileManager.default.fileExists(atPath: folder.path) { try FileManager.default.removeItem(at: folder) }

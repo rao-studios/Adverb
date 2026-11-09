@@ -53,9 +53,11 @@ public final class VoiceLibrary: SpeechProvider, @unchecked Sendable {
 
     // MARK: - Folders
 
-    public static func folder(_ spec: ModelSpec) -> URL? {
-        let folder = ModelHome.folder(spec.id)
-        return isComplete(folder) ? folder : nil
+    /// The pack's copy in the models folders, wherever it sits (ModelSearch: by its pinned commit).
+    public static func folder(_ spec: ModelSpec) -> URL? { copies(of: spec).first?.folder }
+
+    public static func copies(of spec: ModelSpec) -> [ModelCopy] {
+        ModelSearch.copies(of: spec, roots: ModelHome.searchRoots(), isComplete: isComplete)
     }
 
     static func folder(forPack id: String) -> URL? {

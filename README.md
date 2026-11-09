@@ -10,7 +10,9 @@ month out on a calendar you post from. Nothing is sent anywhere: no API, no key,
 
 You need a Mac with Apple silicon and macOS 26, and room for the models: about 17 GB for the
 writer and 0.7 GB for the voices, downloaded once from [Rao Studios on Hugging Face](https://huggingface.co/rao-studios).
-32 GB of memory runs the default writer; 24 GB runs a smaller one.
+32 GB of memory runs the default writer; 24 GB runs a smaller one. Before anything downloads, Adverb
+looks through `~/.rao/models` (or the folder you choose in Settings › Models) for models other Rao
+apps already fetched, and uses them where they sit, so nothing is stored twice.
 
 ```sh
 Scripts/make-app.sh && open build/Adverb.app     # or Scripts/dev.sh to build and run
@@ -134,7 +136,7 @@ better page and a slower one.
 | Projects, campaigns, videos, captions, logs | `<working directory>/Adverb/<project>/` |
 | A day's contact sheet and stills | `<asset>/sheet.jpg`, `<asset>/stills/` |
 | Settings | `~/.rao/apps/adverb/settings.json` |
-| Models and voice packs | `~/.rao/models/huggingface/snapshots/models/rao-studios/` (shared with Craft and AII) |
+| Models and voice packs | `~/.rao/models` (shared with Craft and AII), or the folder chosen in Settings › Models; downloads go to `huggingface/snapshots/models/rao-studios/` inside it |
 | A day's narration | `<asset>/voice/<language>/` (`script.json` and one WAV clip per line) |
 | Voice previews | `~/Library/Caches/nyc.rao.adverb/voices/` (spoken on your Mac once) |
 

@@ -63,6 +63,7 @@ public final class AdverbRuntimeRoot {
         booted = true
         let settings = AdverbSettings.load()
         currentSettings = settings
+        ModelHome.use(settings.modelsFolderURL)
         config.set(.settings(settings))
         attachAgents()
         watchVolumes()

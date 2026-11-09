@@ -29,6 +29,8 @@ public struct AdverbSettings: Codable, Sendable, Equatable {
     public var textModel: String?
     /// The eyes, when the writer cannot read images. Nil: the writer's own, or none.
     public var visionModel: String?
+    /// The folder models are kept in and looked for (a path, "~" allowed). Nil: ~/.rao/models.
+    public var modelsFolder: String?
     /// Let the writer think before it plans and writes a page: slower, usually better.
     public var thinking: Bool
     /// Tokens the writer may think for before it must answer.
@@ -59,18 +61,19 @@ public struct AdverbSettings: Codable, Sendable, Equatable {
                 thinking: Bool = true, thinkingBudget: Int = 4_096, reviewPass: Bool = true, sheetGate: Bool = true,
                 buildConcurrency: Int = 2, renderer: RendererKind = .native, supersample: Bool = false, bitrateMbps: Int = 12,
                 skillPath: String? = nil, lastProjectSlug: String? = nil, voiceOverDefault: Bool = false, voiceID: String? = nil,
-                voiceName: String? = nil, voicePack: String? = nil, voiceLanguages: [Language] = []) {
+                voiceName: String? = nil, voicePack: String? = nil, voiceLanguages: [Language] = [], modelsFolder: String? = nil) {
         self.workdir = workdir; self.musicFolder = musicFolder; self.textModel = textModel; self.visionModel = visionModel
         self.thinking = thinking; self.thinkingBudget = thinkingBudget; self.reviewPass = reviewPass; self.sheetGate = sheetGate
         self.buildConcurrency = buildConcurrency; self.renderer = renderer; self.supersample = supersample
         self.bitrateMbps = bitrateMbps; self.skillPath = skillPath; self.lastProjectSlug = lastProjectSlug
         self.voiceOverDefault = voiceOverDefault; self.voiceID = voiceID; self.voiceName = voiceName; self.voicePack = voicePack
-        self.voiceLanguages = voiceLanguages
+        self.voiceLanguages = voiceLanguages; self.modelsFolder = modelsFolder
     }
 
     enum CodingKeys: String, CodingKey {
         case version, workdir, musicFolder, textModel, visionModel, thinking, thinkingBudget, reviewPass, sheetGate, buildConcurrency,
-             renderer, supersample, bitrateMbps, skillPath, lastProjectSlug, voiceOverDefault, voiceID, voiceName, voicePack, voiceLanguages
+             renderer, supersample, bitrateMbps, skillPath, lastProjectSlug, voiceOverDefault, voiceID, voiceName, voicePack, voiceLanguages,
+             modelsFolder
     }
 
     public init(from decoder: Decoder) throws {
@@ -81,6 +84,7 @@ public struct AdverbSettings: Codable, Sendable, Equatable {
         musicFolder = try? c.decode(String.self, forKey: .musicFolder)
         textModel = try? c.decode(String.self, forKey: .textModel)
         visionModel = try? c.decode(String.self, forKey: .visionModel)
+        modelsFolder = (try? c.decode(String.self, forKey: .modelsFolder)).flatMap { $0.isEmpty ? nil : $0 }
         thinking = (try? c.decode(Bool.self, forKey: .thinking)) ?? d.thinking
         thinkingBudget = (try? c.decode(Int.self, forKey: .thinkingBudget)) ?? d.thinkingBudget
         reviewPass = (try? c.decode(Bool.self, forKey: .reviewPass)) ?? d.reviewPass
@@ -106,7 +110,9 @@ public struct AdverbSettings: Codable, Sendable, Equatable {
         return VoiceSelection(voiceID: voiceID, voiceName: voiceName ?? voiceID, packID: voicePack)
     }
 
-    /// The writer this Mac uses: the setting, else the recommended one.
+    /// The models folder as a URL (nil: ~/.rao/models).
+    public var modelsFolderURL: URL? { modelsFolder.map(ModelHome.url) }
+
     /// The writer in use: the one chosen, while the catalog still offers it, else this Mac's default.
     public var textModelID: String {
         textModel.flatMap { ModelCatalog.spec($0)?.slot == .text ? $0 : nil } ?? ModelCatalog.recommended().text.id

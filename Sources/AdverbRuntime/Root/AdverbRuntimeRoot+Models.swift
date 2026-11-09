@@ -16,26 +16,31 @@ import AdverbVoice
 import Foundation
 
 extension AdverbRuntimeRoot {
-    /// Reads the models home again: which catalog models (and the setting's own) are installed.
+    /// Searches the models folders again: which catalog models (and the setting's own) are on this
+    /// Mac, and where (a copy another Rao app fetched is used where it sits).
     public func refreshModels() async {
         let ids = Array(Swift.Set(ModelCatalog.all.map(\.id) + [settings.textModelID] + [settings.visionModel].compactMap { $0 }))
-        let scan = await Task.detached { () -> (Swift.Set<String>, [String: Int64]) in
+        let scan = await Task.detached { () -> (Swift.Set<String>, [String: Int64], [String: [ModelCopy]]) in
             var installed = Swift.Set<String>()
             var sizes: [String: Int64] = [:]
+            var found: [String: [ModelCopy]] = [:]
+            let folders = ModelSearch.scan(ModelHome.searchRoots())
             for id in ids {
-                let folder: URL?
-                if let spec = ModelCatalog.spec(id), spec.slot == .speech {
-                    folder = VoiceLibrary.folder(spec)
+                let copies: [ModelCopy]
+                if let spec = ModelCatalog.spec(id) {
+                    copies = ModelSearch.copies(of: spec, in: folders,
+                                                isComplete: spec.slot == .speech ? VoiceLibrary.isComplete : ModelSearch.isCompleteMLX)
                 } else {
-                    folder = ModelInstaller.resolve(id)
+                    copies = ModelInstaller.resolve(id).map { [ModelCopy(folder: $0, commit: nil, isOwnPath: true, isUpstream: false)] } ?? []
                 }
-                guard let folder else { continue }
+                guard let first = copies.first else { continue }
                 installed.insert(id)
-                sizes[id] = ModelInstaller.size(of: folder)
+                sizes[id] = ModelInstaller.size(of: first.folder)
+                found[id] = copies
             }
-            return (installed, sizes)
+            return (installed, sizes, found)
         }.value
-        models.set(.scanned(installed: scan.0, sizes: scan.1))
+        models.set(.scanned(installed: scan.0, sizes: scan.1, copies: scan.2))
         models.set(.loaded(Swift.Set(await ModelPool.shared.loadedIDs)))
     }
 
@@ -97,12 +102,31 @@ extension AdverbRuntimeRoot {
             if spec.slot == .speech {
                 try VoicePackInstaller.remove(spec)
             } else {
-                try ModelInstaller.remove(spec.id)
+                try ModelInstaller.remove(spec)
             }
             config.set(.notice("\(spec.title) was removed from this Mac."))
         } catch {
             config.set(.problem("\(spec.title) was not removed: \(error)"))
         }
+        await refreshModels()
+        await loadVoices()
+        await refresh()
+    }
+
+    /// The folder models are kept in and looked for from now on (nil: ~/.rao/models). Models loaded
+    /// from the old folder stay loaded until the writer changes.
+    public func useModelsFolder(_ folder: URL?) async {
+        if let folder {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+                config.set(.problem("\(ModelHome.display(folder)) is not a folder on this Mac."))
+                return
+            }
+        }
+        let chosen = folder.flatMap { $0.standardizedFileURL == ModelHome.defaultRoot().standardizedFileURL ? nil : $0 }
+        update { $0.modelsFolder = chosen.map(ModelHome.display) }
+        ModelHome.use(chosen)
+        VoiceLibrary.shared.unloadAll()
         await refreshModels()
         await loadVoices()
         await refresh()
