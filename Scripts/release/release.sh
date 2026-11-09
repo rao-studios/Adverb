@@ -186,7 +186,9 @@ signature="$(codesign -dv --verbose=2 "$APP" 2>&1)"
 [[ "$signature" == *"(runtime)"* ]] || fail "$APP lacks the hardened runtime"
 [[ "$signature" == *"TeamIdentifier=$TEAM_ID"* ]] || fail "$APP is not signed by team $TEAM_ID"
 for nested in "$APP/Contents/MacOS/mlx.metallib" "$APP"/Contents/Resources/*.bundle; do
-    codesign -dv --verbose=2 "$nested" 2>&1 | grep -q "TeamIdentifier=$TEAM_ID" || fail "$nested is not signed by team $TEAM_ID"
+    # Captured, then matched: `codesign | grep -q` fails under pipefail when grep quits early.
+    nested_signature="$(codesign -dv --verbose=2 "$nested" 2>&1 || true)"
+    [[ "$nested_signature" == *"TeamIdentifier=$TEAM_ID"* ]] || fail "$nested is not signed by team $TEAM_ID"
 done
 [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")" = "$VERSION" ] \
     || fail "the app's Info.plist does not say $VERSION"
