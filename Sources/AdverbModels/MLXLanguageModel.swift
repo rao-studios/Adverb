@@ -135,7 +135,7 @@ public final class MLXLanguageModel: AdverbCore.LanguageModel, @unchecked Sendab
                     cacheNow = existing; prefix = kept.tokenCount; fresh = false; copy = kept
                 }
             }
-            if fresh { cacheNow = CheckpointedCache(layers: model.newCache(parameters: parameters)) }
+            if fresh { cacheNow = try CheckpointedCache(layers: model.newCache(parameters: parameters)) }
             reused = prefix
             prefilled = tokens.count - prefix
             onEvent(.status(prefix > 0
